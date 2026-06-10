@@ -126,24 +126,24 @@ def test_live_mode_snap(core, duration_sec=10.0):
 
     core.stop_sequence_acquisition()
     # capture and save loop
-    # while time.time() - start_time < duration_sec:
-    #     # Crucial: Use get_last_tagged_image() during live mode to prevent hardware blocking
-    #     tagged = core.get_last_tagged_image()
+    while time.time() - start_time < duration_sec:
+        # Crucial: Use get_last_tagged_image() during live mode to prevent hardware blocking
+        tagged = core.get_last_tagged_image()
         
-    #     height = tagged.tags["Height"]
-    #     width = tagged.tags["Width"]
-    #     image = np.reshape(tagged.pix, (height, width))
+        height = tagged.tags["Height"]
+        width = tagged.tags["Width"]
+        image = np.reshape(tagged.pix, (height, width))
 
-    #     # Save image as a high-quality TIFF file safely
-    #     img_filename = os.path.join(save_dir, f"frame_{count:04d}.tiff")
-    #     img = Image.fromarray(image)
-    #     img.save(img_filename)
+        # Save image as a high-quality TIFF file safely
+        img_filename = os.path.join(save_dir, f"frame_{count:04d}.tiff")
+        img = Image.fromarray(image)
+        img.save(img_filename)
         
-    #     count += 1
-    #     time.sleep(0.1)  # Small delay to prevent overloading disk I/O with too many files
+        count += 1
+        time.sleep(0.1)  # Small delay to prevent overloading disk I/O with too many files
 
-    # print(f"  Captured and saved {count} images in {duration_sec:.1f} seconds inside '{save_dir}'.")
-    # print("  Live mode snap OK.")
+    print(f"  Captured and saved {count} images in {duration_sec:.1f} seconds inside '{save_dir}'.")
+    print("  Live mode snap OK.")
 
 
 
@@ -215,6 +215,66 @@ def test_pure_dmd_control(core):
         core.set_slm_image(slm, full_off) 
         core.display_slm_image(slm)
         print("  -> Safety state restored.")
+
+
+def test_dmd_brightness_live_snap(core, exposures_ms=(50, 200, 1000)):
+    """Change DMD exposure time during Live mode and save snapshots from the buffer."""
+    print("\n[TEST 3] DMD Brightness Live Snap")
+
+    # 1. Prepare directory to save captured frames
+    save_dir = "live_mode_images"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # 2. Ensure Live mode is running to observe changes in real-time
+    if not core.is_sequence_running():
+        print("  Live mode is OFF. Starting continuous sequence acquisition...")
+        core.start_continuous_sequence_acquisition(0)
+        time.sleep(0.5)
+
+    slm = core.get_slm_device()
+    w, h = core.get_slm_width(slm), core.get_slm_height(slm)
+
+    # Define full patterns (255 = mirrors ON, 0 = mirrors OFF)
+    full_on = np.full((h, w), 255, dtype=np.uint8)
+    full_off = np.zeros((h, w), dtype=np.uint8)
+
+    try:
+        # Turn all DMD mirrors ON first
+        print("  -> Turning all DMD mirrors ON.")
+        core.set_slm_image(slm, full_on)
+        core.display_slm_image(slm)
+        time.sleep(1.0)
+
+        # 3. Step through different exposure times and capture images
+        for exp in exposures_ms:
+            # Adjust DMD exposure time
+            core.set_slm_exposure(slm, float(exp))
+            current_exp = core.get_slm_exposure(slm)
+            print(f"  -> DMD exposure set to: {current_exp} ms")
+            
+            # Wait for the hardware and camera buffer to stabilize under new light energy
+            time.sleep(2.0)
+
+            # Grab the latest frame safely from the live buffer (prevents hardware crash)
+            tagged = core.get_last_tagged_image()
+            image = np.reshape(tagged.pix, (tagged.tags["Height"], tagged.tags["Width"]))
+
+            # Save the snapshot as a high-quality TIFF file
+            filename = os.path.join(save_dir, f"dmd_exp_{int(exp)}ms.tiff")
+            img = Image.fromarray(image)
+            img.save(filename)
+            print(f"     [Saved] {filename}")
+
+    except Exception as e:
+        print(f"[ERROR] Exception occurred during DMD exposure test: {e}")
+
+    finally:
+        # SAFETY FIRST: Turn off DMD mirrors when done to protect the setup
+        print("[SAFETY] Resetting DMD to safe state (All mirrors OFF)...")
+        core.set_slm_image(slm, full_off)
+        core.display_slm_image(slm)
+        print("[SAFETY] Hardware safe state restored.")
 
 
 # # ---------------------------------------------------------------------
@@ -290,6 +350,7 @@ if __name__ == "__main__":
         #test_pure_dmd_control(core)
         # test_light_on_off(core, on_seconds=2.0)
         # test_dmd_brightness(core, exposures_ms=(50, 200, 1000))
+        test_dmd_brightness_live_snap(core, exposures_ms=(50, 200, 1000))
 
     except Exception as e:
         print(f"\n[ERROR] {e}")
