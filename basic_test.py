@@ -54,7 +54,7 @@ TEST EXECUTION (one at a time):
 
 
 """
-
+import os
 import time
 import numpy as np
 from PIL import Image  # Required for saving images (pip install pillow)
@@ -221,25 +221,27 @@ def test_dmd_brightness_live_snap(core, exposures_ms=(50, 200, 1000)):
     """Change DMD exposure time during Live mode and save snapshots from the buffer."""
     print("\n[TEST 3] DMD Brightness Live Snap")
 
-    # 1. Prepare directory to save captured frames
+    # Define the save directory at the very top of the function to avoid undefined errors
     save_dir = "live_mode_images"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    # 2. Ensure Live mode is running to observe changes in real-time
-    if not core.is_sequence_running():
-        print("  Live mode is OFF. Starting continuous sequence acquisition...")
-        core.start_continuous_sequence_acquisition(0)
-        time.sleep(0.5)
-
-    slm = core.get_slm_device()
-    w, h = core.get_slm_width(slm), core.get_slm_height(slm)
-
-    # Define full patterns (255 = mirrors ON, 0 = mirrors OFF)
-    full_on = np.full((h, w), 255, dtype=np.uint8)
-    full_off = np.zeros((h, w), dtype=np.uint8)
 
     try:
+        # 1. Prepare directory to save captured frames
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # 2. Ensure Live mode is running to observe changes in real-time
+        if not core.is_sequence_running():
+            print("  Live mode is OFF. Starting continuous sequence acquisition...")
+            core.start_continuous_sequence_acquisition(0)
+            time.sleep(0.5)
+
+        slm = core.get_slm_device()
+        w, h = core.get_slm_width(slm), core.get_slm_height(slm)
+
+        # Define full patterns (255 = mirrors ON, 0 = mirrors OFF)
+        full_on = np.full((h, w), 255, dtype=np.uint8)
+        full_off = np.zeros((h, w), dtype=np.uint8)
+
         # Turn all DMD mirrors ON first
         print("  -> Turning all DMD mirrors ON.")
         core.set_slm_image(slm, full_on)
@@ -266,15 +268,23 @@ def test_dmd_brightness_live_snap(core, exposures_ms=(50, 200, 1000)):
             img.save(filename)
             print(f"     [Saved] {filename}")
 
+        print(f"  Captured and saved images inside '{save_dir}'.")
+
     except Exception as e:
         print(f"[ERROR] Exception occurred during DMD exposure test: {e}")
 
     finally:
         # SAFETY FIRST: Turn off DMD mirrors when done to protect the setup
         print("[SAFETY] Resetting DMD to safe state (All mirrors OFF)...")
-        core.set_slm_image(slm, full_off)
-        core.display_slm_image(slm)
-        print("[SAFETY] Hardware safe state restored.")
+        try:
+            slm = core.get_slm_device()
+            w, h = core.get_slm_width(slm), core.get_slm_height(slm)
+            full_off = np.zeros((h, w), dtype=np.uint8)
+            core.set_slm_image(slm, full_off)
+            core.display_slm_image(slm)
+            print("[SAFETY] Hardware safe state restored.")
+        except Exception as safety_err:
+            print(f"[SAFETY ERROR] Failed to reset DMD: {safety_err}")
 
 
 # # ---------------------------------------------------------------------
