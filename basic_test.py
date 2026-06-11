@@ -55,7 +55,6 @@ How to run:
     python -c "from pycromanager import Core; c = Core(); print('OK')"
     python basic_test.py
 
-
 =================================================
 LAB SESSION CHECKLIST — run in this order
 =================================================
@@ -103,10 +102,6 @@ BEFORE LEAVING THE LAB:
         → Restores all settings to the state saved in step 2.
           DMD → OFF state, shutter → closed.
 =================================================
-
-
-
-
 """
 
 import os
@@ -224,7 +219,7 @@ def connect() -> Core:
 
     print()
     print("  All available devices:")
-    for dev in core.get_loaded_devices():
+    for dev in list(core.get_loaded_devices()):
         print(f"    - {dev}")
 
     print("=" * 50)
@@ -376,12 +371,12 @@ def test_pure_dmd_control(core):
     full_off = np.zeros((h, w),     dtype=np.uint8)
 
     try:
-        start_live(core)    #live mode
-        led_on(core)    #shutter on
+        start_live(core)
+        led_on(core)
 
         # Pre-load a safe off state first (best practice)
         core.set_slm_image(slm, full_off)
-        core.display_slm_image(slm) #apply on to the mirror 
+        core.display_slm_image(slm)
         time.sleep(0.5)
 
         print("  -> DMD ON  (all mirrors reflecting — look at stage)")
@@ -566,7 +561,7 @@ def test_dmd_partial_pattern(core, save_dir: str = "pattern_test"):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 7: LED vs DMD independent control — 3가지 조합 확인
+# STEP 7: LED vs DMD 독립 제어 — 3가지 조합 확인
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dmd_separation"):
@@ -577,27 +572,6 @@ def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dm
         X-Cite LED  → 빛을 '있게 / 없게'  (set_shutter_open)
         Andor Mosaic3 → 빛을 '어디에'     (set_slm_image + display_slm_image)
         둘 다 ON이어야 샘플에 빛이 닿음.
-
-    Test combinations (each held for hold_sec seconds, camera snap saved):
-
-    Combination A — LED ON  / DMD OFF
-        → Light emitted from LED, but all DMD mirrors in OFF state (dump direction)
-        → No light should reach the sample (dark image expected)
-        → Check: camera image pixel values close to 0
-
-    Combination B — LED ON  / DMD ON (full)
-        → Full brightfield — brightest state
-        → Check: pixel values significantly higher than combination A
-
-    Combination C — LED OFF / DMD ON (full)
-        → All DMD mirrors in ON state, but no light source
-        → No light reaches the sample (should be as dark as combination A)
-        → Check: confirms DMD alone cannot generate light
-
-    Result interpretation:
-    mean(B) >> mean(A) ≈ mean(C)  →  both devices operating independently as expected
-    mean(A) ≈ mean(B)             →  shutter API may not be properly linked to the LED
-    mean(B) ≈ mean(C)             →  SLM device may not be correctly detected
 
     테스트 조합 (각 hold_sec초 동안 유지하며 카메라 스냅 저장):
 
@@ -729,7 +703,7 @@ def print_device_properties(core):
     """
     print("\n[INVENTORY] All device properties")
     print("=" * 60)
-    for device in core.get_loaded_devices():
+    for device in list(core.get_loaded_devices()):
         props = core.get_device_property_names(device)
         if props:
             print(f"\n  [{device}]")
@@ -957,7 +931,7 @@ def inspect_live_state(core):
     cal_keywords = ["calibration", "pixel", "scale", "magnif",
                     "offset", "gain", "readout", "bitdepth",
                     "binning", "triggermode", "exposure", "speed"]
-    for device in core.get_loaded_devices():
+    for device in list(core.get_loaded_devices()):
         try:
             props = core.get_device_property_names(device)
         except Exception:
@@ -1034,7 +1008,7 @@ def save_baseline(core, save_path: str = "baseline_settings.json"):
 
     # 각 장치의 복구 가능한 property 저장
     skipped = []
-    for device in core.get_loaded_devices():
+    for device in list(core.get_loaded_devices()):
         try:
             props = core.get_device_property_names(device)
         except Exception:
