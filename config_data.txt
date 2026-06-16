@@ -1,0 +1,468 @@
+'''
+[CONFIG] 파일 파싱: C:\Program Files\Micro-Manager-2.0\Olympus IX83 System2.cfg
+============================================================
+
+  [장치 목록]  (14개)
+    COM3                  adapter=SerialManager  lib=COM3
+    COM4                  adapter=SerialManager  lib=COM4
+    Olympus IX83          adapter=OlympusIX83  lib=Olympus IX83
+    Objective             adapter=OlympusIX83  lib=Objective
+    Light Path            adapter=OlympusIX83  lib=Light Path
+    Dichroic 2            adapter=OlympusIX83  lib=Dichroic 2
+    EpiShutter 2          adapter=OlympusIX83  lib=EpiShutter 2
+    TransmittedIllumination 1  adapter=OlympusIX83  lib=TransmittedIllumination 1
+    TransmittedIllumination 2  adapter=OlympusIX83  lib=TransmittedIllumination 2
+    FocusDrive            adapter=OlympusIX83  lib=FocusDrive
+    XYStage               adapter=Marzhauser  lib=XYStage
+    Camera-1              adapter=PVCAM  lib=Camera-1
+    XCite-120PC           adapter=XCite120PC_Exacte  lib=XCite-120PC
+    Mosaic3               adapter=Mosaic3  lib=Mosaic3
+
+  [Pixel Size Calibration]
+    (설정 없음 — MM GUI에서 Pixel Size Config 확인 필요)
+
+  [Channel Groups]
+
+    Group: Brightfield
+      Config: BF
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 1-NONE
+        Dichroic 2.State = 0
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 255
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Shutter-State = Closed
+
+    Group: Fluorescence
+      Config: GFP 100%
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 2-IX3-FGFPXL
+        Dichroic 2.State = 1
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 0
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Lamp-Intensity = 100
+        XCite-120PC.Lamp-State = On
+        XCite-120PC.Shutter-State = Closed
+        Core.AutoShutter = 1
+        Core.Shutter = XCite-120PC
+      Config: MCHERRY 100%
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 3-IX3-FMCHEXL
+        Dichroic 2.State = 2
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 0
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Lamp-Intensity = 100
+        XCite-120PC.Lamp-State = On
+        XCite-120PC.Shutter-State = Closed
+        Core.AutoShutter = 1
+        Core.Shutter = XCite-120PC
+      Config: FL 100% mirror
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 5-NONE
+        Dichroic 2.State = 4
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 255
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Lamp-Intensity = 100
+        XCite-120PC.Lamp-State = On
+        XCite-120PC.Shutter-State = Open
+        Core.AutoShutter = 1
+        Core.Shutter = XCite-120PC
+      Config: MCHERRY 12%
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 3-IX3-FMCHEXL
+        Dichroic 2.State = 2
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 0
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Lamp-Intensity = 12
+        XCite-120PC.Lamp-State = On
+        XCite-120PC.Shutter-State = Open
+        Core.AutoShutter = 1
+        Core.Shutter = XCite-120PC
+      Config: GFP 50%
+        Olympus IX83.FrontPanel = 1
+        Olympus IX83.TouchPanel = 1
+        Dichroic 2.Label = 2-IX3-FGFPXL
+        Dichroic 2.State = 1
+        EpiShutter 2.State = 1
+        TransmittedIllumination 2.Brightness = 0
+        Camera-1.Exposure = 10.0000
+        Camera-1.Gain = 1-Balanced
+        Camera-1.Offset = 0
+        Camera-1.PMode = Normal
+        XCite-120PC.Lamp-Intensity = 50
+        XCite-120PC.Lamp-State = On
+        XCite-120PC.Shutter-State = Closed
+        Core.AutoShutter = 1
+        Core.Shutter = XCite-120PC
+
+  [Device Properties (초기값)]
+
+    [XYStage]
+      * Port: COM4
+
+    [XCite-120PC]
+      * Port: COM3
+
+    [COM3]
+        AnswerTimeout: 500.0000
+        BaudRate: 9600
+        DTR: Disable
+        DataBits: 8
+        DelayBetweenCharsMs: 0.0000
+        Fast USB to Serial: Disable
+        Handshaking: Off
+        Parity: None
+        StopBits: 1
+        Verbose: 1
+
+    [COM4]
+        AnswerTimeout: 500.0000
+        BaudRate: 9600
+        DTR: Disable
+        DataBits: 8
+        DelayBetweenCharsMs: 0.0000
+        Fast USB to Serial: Disable
+        Handshaking: Off
+        Parity: None
+        StopBits: 1
+        Verbose: 1
+
+  [System Properties (Core)]
+    Initialize: 0
+    Initialize: 1
+    Camera: Camera-1
+    Shutter: XCite-120PC
+    Focus: FocusDrive
+    AutoShutter: 1
+
+============================================================
+  파싱 완료: 장치 14개 / pixel size 0개 / channel group 2개
+
+  
+
+==================================================
+Connected to Micro-Manager
+==================================================
+  Camera       : Camera-1
+  Exposure(ms) : 10
+  SLM/DMD      : Mosaic3
+  DMD size     : 800 x 600 px
+  Shutter      : XCite-120PC
+  Shutter open : False
+
+  All available devices:
+    - COM3
+    - COM4
+    - Olympus IX83
+    - Objective
+    - Light Path
+    - Dichroic 2
+    - EpiShutter 2
+    - TransmittedIllumination 1
+    - TransmittedIllumination 2
+    - FocusDrive
+    - XYStage
+    - Camera-1
+    - XCite-120PC
+    - Mosaic3
+    - Core
+==================================================
+
+[LIVE STATE] 현재 Micro-Manager calibration 값
+============================================================
+
+  [카메라]
+    Device name  : Camera-1
+    Exposure     : 10 ms
+    Binning      : 1x1
+    Pixel type   : 12bit
+    ROI          : x=0 y=0 w=3200 h=2200
+    Image size   : 3200 x 2200 px
+    Bytes/pixel  : 2
+    Bit depth    : 12 bit
+
+  [Pixel Size Calibration]
+    (Pixel Size Config 미설정 — MM GUI > Pixel Size Config에서 설정 필요)
+    RL에서 실제 µm 단위 필요 시 반드시 설정 필요
+
+  [SLM / DMD]
+    Device name  : Mosaic3
+    Resolution   : 800 x 600 px
+    SLM exposure : 2000 ms
+
+  [Stage 현재 위치]
+    XY stage     : XYStage
+    X = 3407.800 µm  |  Y = 311.000 µm
+    Z stage      : FocusDrive
+    Z = 4685.300 µm
+
+  [Calibration 관련 Property (전체 장치 필터)]
+
+    [FocusDrive]
+      InitialSpeed: 700
+      MaxSpeed: 3000
+
+    [XYStage]
+      SpeedX [mm/s]: 10.0000
+      SpeedY [mm/s]: 10.0000
+
+    [Camera-1]
+      Binning: 1x1
+      Exposure: 10.0000
+      Gain: 1-Balanced
+      Offset: 0
+      PixelType: 12bit
+      ReadoutRate: 200MHz 12bit
+      Timing-ExposureTimeNs: 10000000.0000
+      TriggerMode: Internal Trigger
+
+    [Mosaic3]
+      ExposureTime: 2.0000
+      GrayScaleExposureTime: 0.0500
+      PixelMode: BlackAndWhite
+      TriggerMode: InternalExpose
+
+============================================================
+  live state 읽기 완료.
+
+
+  
+==================================================
+
+[INVENTORY] All device properties
+============================================================
+
+  [COM3]
+    AnswerTimeout: 500.0000
+    BaudRate: 9600
+    DTR: Disable
+    DataBits: 8
+    DelayBetweenCharsMs: 0.0000
+    Description: Serial port driver (boost:asio)
+    Fast USB to Serial: Disable
+    Handshaking: Off
+    Name: COM3
+    Parity: None
+    StopBits: 1
+    Verbose: 1
+
+  [COM4]
+    AnswerTimeout: 500.0000
+    BaudRate: 9600
+    DTR: Disable
+    DataBits: 8
+    DelayBetweenCharsMs: 0.0000
+    Description: Serial port driver (boost:asio)
+    Fast USB to Serial: Disable
+    Handshaking: Off
+    Name: COM4
+    Parity: None
+    StopBits: 1
+    Verbose: 1
+
+  [Olympus IX83]
+    Description: Olympus IX83,BX83 Microscopes
+    FrontPanel: 1
+    Name: Olympus IX83
+    TouchPanel: 1
+
+  [Objective]
+    Description: Objective turret (nosepiece)
+    Label: 4-UPLXAPO100XO
+    Name: Objective
+    State: 3
+
+  [Light Path]
+    Description: Switches light between camera and eyepiece.
+    Label: 1-LeftPort
+    Name: Light Path
+    State: 0
+
+  [Dichroic 2]
+    Description: Mirror unit deck 2
+    Label: 1-NONE
+    Name: Dichroic 2
+    State: 0
+
+  [EpiShutter 2]
+    Description: Epi shutter, deck 2
+    Name: EpiShutter 2
+    State: 1
+
+  [TransmittedIllumination 1]
+    Brightness: 0
+    Description: DIA High Intensity White LED 1
+    Name: TransmittedIllumination 1
+
+  [TransmittedIllumination 2]
+    Brightness: 104
+    Description: DIA High Intensity White LED 2
+    Name: TransmittedIllumination 2
+
+  [FocusDrive]
+    AccelerationTime: 60
+    Description: Olympus IX83 Z drive
+    InitialSpeed: 700
+    MaxSpeed: 3000
+    Name: FocusDrive
+
+  [XYStage]
+    Acceleration X [m/s^2]: 0.2000
+    Acceleration Y [m/s^2]: 0.2000
+    Backlash X [um]: 0.0000
+    Backlash Y [um]: 0.0000
+    Description: Tango XY stage driver adapter
+    Name: XYStage
+    Port: COM4
+    SpeedX [mm/s]: 10.0000
+    SpeedY [mm/s]: 10.0000
+    StepSizeX [um]: 0.0024
+    StepSizeY [um]: 0.0024
+    TransposeMirrorX: 0
+    TransposeMirrorY: 0
+
+  [Camera-1]
+    AcquisitionMethod: Callbacks
+    ActualInterval-ms: 19.4700
+    Binning: 1x1
+    CCDTemperature: 42.6300
+    CCDTemperatureSetPoint: 0.0000
+    ChipName: SONY-IMX428
+    CircularBufferAutoSize: ON
+    CircularBufferEnabled: ON
+    CircularBufferFrameCount: 28
+    CircularBufferFrameRecovery: OFF
+    ClearCycles: 2
+    ClearMode: Auto
+    Color: OFF
+    Description: PVCAM API device adapter
+    DiskStreamingCoreSkipRatio: 1:100
+    DiskStreamingEnabled: No
+    DiskStreamingPath: 
+    ExposeOutMode: Global Shutter
+    Exposure: 10.0000
+    FTCapable: No
+    FirmwareVersion: 27.9
+    FullWellCapacity: 8000
+    Gain: 1-Balanced
+    Name: PMUSBCam00
+    Offset: 0
+    PMode: Normal
+    PP  0 DESPECKLE BRIGHT LOW: DESPECKLE BRIGHT LOW
+    PP  1   ENABLED: Yes
+    PP  1   THRESHOLD: 130
+    PP  1 DESPECKLE BRIGHT HIGH: DESPECKLE BRIGHT HIGH
+    PP  2   ENABLED: Yes
+    PP  2   MIN ADU AFFECTED: 200
+    PP  2   THRESHOLD: 200
+    PP  2 DESPECKLE DARK LOW: DESPECKLE DARK LOW
+    PP  3   ENABLED: Yes
+    PP  3   THRESHOLD: 60
+    PP  3 DESPECKLE DARK HIGH: DESPECKLE DARK HIGH
+    PP  4   ENABLED: Yes
+    PP  4   MIN ADU AFFECTED: 200
+    PP  4   THRESHOLD: 40
+    PP  5 Reset: No
+    PVCAM Adapter Version: 1.3.61
+    PVCAM Version: 3.10.0
+    PixelType: 12bit
+    Port: CMOS
+    PreampDelay: 0
+    PreampOffLimit: 10000
+    ReadoutRate: 200MHz 12bit
+    SerialNumber: A23B635012
+    ShutterCloseDelay: 0
+    ShutterMode: Pre-Exposure
+    ShutterOpenDelay: 0
+    Timing-ExposureTimeNs: 10000000.0000
+    TransposeCorrection: 0
+    TransposeMirrorX: 0
+    TransposeMirrorY: 0
+    TransposeXY: 0
+    Trigger Timeout (secs): 10
+    TriggerMode: Internal Trigger
+    X-dimension: 3200
+    Y-dimension: 2200
+
+  [XCite-120PC]
+    Alarm-Clear: Clear
+    Front-Panel-Lock: False
+    Lamp-Hours: 179
+    Lamp-Intensity: 100
+    Lamp-State: On
+    Name: XCite-120PC
+    Port: COM3
+    Shutter-Dwell-Time: 0.0000
+    Shutter-State: Closed
+    Software-Version: 13
+    Unit-Status-Alarm-State: OFF
+    Unit-Status-Front-Panel: NOT LOCKED
+    Unit-Status-Home: PASS
+    Unit-Status-Lamp-Ready: READY
+    Unit-Status-Lamp-State: ON
+    Unit-Status-Shutter-State: CLOSED
+
+  [Mosaic3]
+    ControllerFirmwareVersion: 1.0
+    DeviceType: Mosaic III
+    ExposureTime: 2.0000
+    FirmwareVersion: 2.5
+    FrameIndexSource: Software
+    GrayScaleExposureTime: 0.0500
+    ImageSizeBytes: 480000
+    InvertMode: Off
+    IsExposing: Off
+    OperationMode: Live
+    OverlapMode: Off
+    PixelMode: BlackAndWhite
+    SensorHeight: 600
+    SensorWidth: 800
+    SequenceEventCount: 1
+    SequenceLoopCount: 1
+    SequenceSettings: 
+    SerialNumber: MM-00569
+    TriggerMode: InternalExpose
+
+  [Core]
+    AutoFocus: 
+    AutoShutter: 1
+    Camera: Camera-1
+    ChannelGroup: 
+    Focus: FocusDrive
+    Galvo: 
+    ImageProcessor: 
+    Initialize: 1
+    SLM: Mosaic3
+    Shutter: XCite-120PC
+    TimeoutMs: 5000
+    XYStage: XYStage
+============================================================
+
+All imports OK. Ready to run individual test functions.
+Uncomment one test at a time in __main__ and re-run.
+
+

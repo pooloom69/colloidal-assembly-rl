@@ -1,59 +1,36 @@
 """
-basic_test.py
-=============
+basic_test.py  v4
+=================
 Tanjeem Lab — Colloidal Self-Assembly Project
-Hardware automation test script via pycromanager → Micro-Manager 2.0
+Hardware automation test script via pycromanager -> Micro-Manager 2.0
+
+Confirmed hardware (from config file + live state output):
+    Camera   : Camera-1      (SONY-IMX428, 3200x2200, 12-bit)
+    SLM/DMD  : Mosaic3       (800x600 px)
+    Shutter  : XCite-120PC   (controls LED on/off)
+    LED      : TransmittedIllumination 2  (Brightness 0-255, BF default=255)
+    Objective: UPLXAPO100XO  (currently loaded)
+
+Key findings from config file:
+    BF preset (Brightfield > BF):
+        TransmittedIllumination 2.Brightness = 255   <- 0-255 range, NOT percent
+        Camera-1.Exposure                    = 10ms
+        XCite-120PC.Shutter-State            = Closed <- preset keeps it closed
+        Core.AutoShutter                     = 1      <- MM manages shutter automatically
+
+    IMPORTANT: AutoShutter=1 means MM re-closes the shutter automatically.
+               Must call core.set_auto_shutter(False) before manual shutter control.
+               apply_bf_preset() handles this correctly.
 
 Tests (run one at a time):
-    0. connect()                      -- verify device names
-    1. test_camera_snap()             -- single snap, check shape + range
-    2. test_live_mode_snap()          -- live buffer capture, save TIFFs
-    3. test_shutter_toggle()          -- LED on/off visual confirm
-    4. test_pure_dmd_control()        -- DMD full-on / full-off pattern
-    5. test_dmd_brightness_camera()   -- brightness via CAMERA exposure (correct method for Mosaic3)
-    6. test_dmd_partial_pattern()     -- partial pixel pattern for spatial control
-
-NOTE: Andor Mosaic3 does NOT support set_slm_exposure().
-      Brightness is controlled via camera exposure time (set_exposure / get_exposure).
-      DMD spatial pattern (0–255 pixel values) controls WHERE light goes.
-
-=================================
-LAB TEST CHECKLIST — June 2026
-=================================
-
-MICRO-MANAGER SETUP:
-[ ] MM 2.0 launched
-[ ] Config file: Olympus IX83 System2.cfg loaded
-[ ] Manual Snap works in MM GUI
-[ ] All devices showing green in Device Property Browser
-
-DEVICE NAMES — fill in after running connect():
-- Camera  : ___________________  (e.g. "Moment")
-- SLM/DMD : ___________________  (e.g. "Mosaic3" or "AndorMosaic3")
-- Shutter : ___________________  (X-Cite LED, auto-detected by MM)
-
-CODE UPDATES (if needed):
-[ ] Confirm SLM device name matches what connect() prints
-[ ] Confirm shutter name if manual override needed
-
-TEST EXECUTION (one at a time — comment/uncomment in __main__):
-[ ] Step 0: connect() only             → prints device names, no hardware movement
-[ ] Step 1: test_camera_snap()         → image shape + pixel range printed
-[ ] Step 2: test_live_mode_snap()      → TIFFs saved to live_mode_images/
-[ ] Step 3: test_shutter_toggle()      → LED visibly on/off
-[ ] Step 4: test_pure_dmd_control()    → DMD mirrors visibly on/off
-[ ] Step 5: test_dmd_brightness_camera() → exposure changes, TIFFs saved
-[ ] Step 6: test_dmd_partial_pattern() → half-screen pattern test
-[ ] Step 7: test_led_dmd_separation()  → LED vs DMD 독립 제어 3가지 조합 확인
-
-CALIBRATION TOOLS (MM 연결 없이도 일부 실행 가능):
-[ ] inspect_config_file()   → USB의 .cfg 파일 파싱 — 장치 설정값 오프라인 확인
-[ ] inspect_live_state()    → MM 연결 상태에서 현재 calibration 값 live 읽기
-
-How to run:
-    cd path/to/this/script
-    python -c "from pycromanager import Core; c = Core(); print('OK')"
-    python basic_test.py
+    0. connect()                       -- verify device names
+    1. test_camera_snap()              -- single snap, check shape + range
+    2. test_live_mode_snap()           -- live buffer capture, save TIFFs
+    3. test_shutter_toggle()           -- LED on/off visual confirm
+    4. test_pure_dmd_control()         -- DMD full ON / full OFF pattern
+    5. test_dmd_brightness_camera()    -- brightness via camera exposure
+    6. test_dmd_partial_pattern()      -- partial pixel pattern for spatial control
+    7. test_led_dmd_separation()       -- LED vs DMD independence: 3 combo test
 
 =================================================
 LAB SESSION CHECKLIST — run in this order
@@ -61,77 +38,126 @@ LAB SESSION CHECKLIST — run in this order
 
 BEFORE TOUCHING ANYTHING:
 [ ] 1. core = connect()
-        → Confirm camera, SLM, shutter device names are printed correctly.
-          If names are wrong, nothing else will work.
+        -> Confirm Camera-1, Mosaic3, XCite-120PC are printed.
 
 [ ] 2. save_baseline(core)
-        → Saves current settings to baseline_settings.json.
-          Must run this FIRST before any experiment — required for restore.
+        -> Saves current settings to baseline_settings.json.
+           Must run FIRST — required for restore at end of session.
 
-[ ] 3. inspect_config_file("D:/Olympus IX83 System2.cfg")
-        → Parse config file from USB (no MM connection needed).
-          Confirm device names, pixel size calibration, BF preset values.
+[ ] 3. inspect_config_file("C:\\Program Files\\Micro-Manager-2.0\\Olympus IX83 System2.cfg")
+        -> Parse config file. Confirm device names and BF preset values.
 
 [ ] 4. inspect_live_state(core)
-        → Read current live calibration values from MM.
-          Check pixel size (µm/pixel). If 0.0, set it in MM GUI first.
+        -> Read live calibration values. Check pixel size (um/pixel).
+           If 0.0 -> set in MM GUI > Pixel Size Config.
 
 HARDWARE VERIFICATION (MM GUI Live OFF):
 [ ] 5. test_camera_snap(core)
-        → Single snap. Confirm image shape and pixel range.
-          Camera must respond before anything else.
+        -> Single snap. Confirm image shape (3200x2200) and pixel range (0-4095).
 
 [ ] 6. test_led_dmd_separation(core)
-        → Combination A / B / C test.
-          Confirms shutter and DMD are operating independently.
-          Expected: mean(B) >> mean(A) ≈ mean(C)
+        -> Combination A / B / C.
+           Confirms shutter (XCite-120PC) and DMD (Mosaic3) operate independently.
+           Expected: mean(B) >> mean(A) ~= mean(C)
 
 MM GUI LIVE MODE (turn on Live button in MM GUI first):
 [ ] 7. adjust_brightness_gui_live(core)
-        → Phase 1: step through LED brightness levels (30 / 60 / 100%)
-          Phase 2: step through camera exposure (5 / 10 / 30ms)
-          Watch MM Live window. Press Enter to advance each step.
+        -> Phase 1: LED Brightness sweep (80 / 150 / 255) — range is 0-255, NOT percent
+           Phase 2: Camera Exposure sweep (5 / 10 / 30ms) — verify blur effect
+           Watch MM Live window. Press Enter to advance each step.
 
 [ ] 8. adjust_dmd_pattern_gui_live(core)
-        → Step through spatial patterns on DMD while watching MM Live.
-          Full OFF → Full ON → Left half → Right half → Circle
-          Confirms spatial light control is working on the sample.
+        -> Full OFF -> Full ON -> Left half -> Right half -> Circle
+           Confirms spatial light control works on sample.
 
 BEFORE LEAVING THE LAB:
 [ ] 9. restore_baseline(core)
-        → Restores all settings to the state saved in step 2.
-          DMD → OFF state, shutter → closed.
+        -> Restores all settings saved in step 2.
+           DMD -> OFF state, shutter -> closed.
 =================================================
 """
 
 import os
+import json
 import time
 import numpy as np
 from PIL import Image
+from datetime import datetime
 from pycromanager import Core
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# CONFIRMED DEVICE NAMES (from config file + live state)
+# -----------------------------------------------------------------------------
+SHUTTER_DEVICE  = "XCite-120PC"
+LED_DEVICE      = "TransmittedIllumination 2"
+LED_PROP        = "Brightness"
+LED_BF_DEFAULT  = "255"    # BF preset default — range is 0-255, NOT percent
+CAMERA_DEVICE   = "Camera-1"
+DMD_DEVICE      = "Mosaic3"
+BF_GROUP        = "Brightfield"
+BF_CONFIG       = "BF"
+
+
+# -----------------------------------------------------------------------------
 # HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def ensure_dir(path: str) -> str:
-    """Create directory if it doesn't exist. Returns the path."""
+    """Create directory if it does not exist. Returns the path."""
     os.makedirs(path, exist_ok=True)
     return path
 
 
+def _to_list(str_vector) -> list:
+    """
+    Convert a pycromanager/mmcorej StrVector to a Python list.
+
+    mmcorej StrVector is a Java object — NOT directly iterable in Python.
+    list() and for-in both fail because __iter__ does not exist on the Java object.
+
+    Strategy (tried in order):
+        1. size() + get(i)  -- standard Java Vector API, works on all versions
+        2. toArray()        -- available on some bridge versions
+        3. list()           -- works if a newer pycromanager already wraps it
+        4. return []        -- silent fallback, never crashes the caller
+    """
+    try:
+        return [str_vector.get(i) for i in range(str_vector.size())]
+    except Exception:
+        pass
+    try:
+        return list(str_vector.toArray())
+    except Exception:
+        pass
+    try:
+        result = list(str_vector)
+        if result:
+            return result
+    except Exception:
+        pass
+    return []
+
+
+def _has_prop(core, device: str, prop_name: str) -> bool:
+    """Return True if the device exposes the given property name."""
+    try:
+        return prop_name in _to_list(core.get_device_property_names(device))
+    except Exception:
+        return False
+
+
 def save_tiff(image: np.ndarray, path: str):
-    """Save a numpy array as a 16-bit TIFF (safe for 12-bit camera output)."""
-    img = Image.fromarray(image)
-    img.save(path)
+    """Save a numpy array as a TIFF file (safe for 12-bit camera output)."""
+    Image.fromarray(image).save(path)
     print(f"     [Saved] {path}")
 
 
 def grab_frame(core) -> np.ndarray:
     """
     Grab the latest frame from the live buffer.
-    Use get_last_tagged_image() during live mode — never snap() while live is running.
+    Always use get_last_tagged_image() during live mode.
+    Never call snap_image() while live mode is running.
     """
     tagged = core.get_last_tagged_image()
     h = tagged.tags["Height"]
@@ -144,7 +170,7 @@ def start_live(core, delay: float = 0.5):
     if not core.is_sequence_running():
         print("  -> Starting live mode...")
         core.start_continuous_sequence_acquisition(0)
-        time.sleep(delay)   # let camera buffer fill
+        time.sleep(delay)
     else:
         print("  -> Live mode already running.")
 
@@ -156,20 +182,54 @@ def stop_live(core):
         print("  -> Live mode stopped.")
 
 
-def led_on(core):
-    """Open shutter (turn LED on). Check current state first."""
+def apply_bf_preset(core):
+    """
+    Apply the Brightfield > BF config preset, then open the shutter manually.
+
+    Why this is needed:
+        The BF preset sets XCite-120PC.Shutter-State = Closed and
+        Core.AutoShutter = 1. With AutoShutter ON, MM re-closes the shutter
+        automatically after each snap. We must disable AutoShutter and open
+        the shutter manually for our tests to work.
+
+    What this does:
+        1. core.set_config("Brightfield", "BF")  -- applies all BF preset values:
+               TransmittedIllumination 2.Brightness = 255
+               Camera-1.Exposure = 10ms
+               Dichroic 2 position, EpiShutter state, etc.
+        2. core.set_auto_shutter(False)           -- disables AutoShutter
+        3. core.set_shutter_open(True)            -- opens shutter manually
+    """
+    try:
+        print("  -> Applying BF preset (Brightfield > BF)...")
+        core.set_config(BF_GROUP, BF_CONFIG)
+        time.sleep(0.3)
+        print(f"     LED Brightness : {core.get_property(LED_DEVICE, LED_PROP)} (BF default=255)")
+        print(f"     Exposure       : {core.get_exposure()} ms")
+    except Exception as e:
+        print(f"  [WARNING] Could not apply BF preset: {e}")
+        print("            Continuing without preset — check MM GUI manually.")
+
+    # Disable AutoShutter so manual set_shutter_open() is not overridden by MM
+    try:
+        core.set_auto_shutter(False)
+        print("  -> AutoShutter disabled (manual shutter control active)")
+    except Exception as e:
+        print(f"  [WARNING] Could not disable AutoShutter: {e}")
+
+    # Open shutter manually
     if not core.get_shutter_open():
         core.set_shutter_open(True)
         time.sleep(0.3)
-        print("  -> LED ON")
+        print("  -> Shutter OPEN")
     else:
-        print("  -> LED already ON")
+        print("  -> Shutter already open")
 
 
 def dmd_safe_off(core):
     """
-    Safety reset: set all DMD mirrors OFF.
-    Call this in every finally block.
+    Safety reset: set all DMD mirrors to OFF state (dump direction).
+    Call this in every finally block to protect hardware.
     """
     try:
         slm = core.get_slm_device()
@@ -178,154 +238,179 @@ def dmd_safe_off(core):
         off = np.zeros((h, w), dtype=np.uint8)
         core.set_slm_image(slm, off)
         core.display_slm_image(slm)
-        print("  [SAFETY] DMD mirrors set to OFF.")
+        print("  [SAFETY] DMD mirrors -> OFF state.")
     except Exception as e:
         print(f"  [SAFETY ERROR] Could not reset DMD: {e}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+def safe_exit(core):
+    """
+    Full safety reset: DMD OFF + shutter closed + AutoShutter restored.
+    Call in every finally block.
+    """
+    dmd_safe_off(core)
+    stop_live(core)
+    try:
+        core.set_shutter_open(False)
+        core.set_auto_shutter(True)   # restore MM default
+        print("  [SAFETY] Shutter closed. AutoShutter restored to ON.")
+    except Exception as e:
+        print(f"  [SAFETY ERROR] {e}")
+
+
+# -----------------------------------------------------------------------------
 # STEP 0: Connect
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def connect() -> Core:
     """
     Connect to the running Micro-Manager core and print all device names.
-    Write down the SLM/DMD name printed here — needed for all DMD tests.
-
     No hardware is moved.
+
+    Expected output:
+        Camera   : Camera-1
+        SLM/DMD  : Mosaic3   (800 x 600 px)
+        Shutter  : XCite-120PC
     """
     core = Core()
-    print("=" * 50)
+    print("=" * 52)
     print("Connected to Micro-Manager")
-    print("=" * 50)
+    print("=" * 52)
 
-    camera = core.get_camera_device()
-    print(f"  Camera       : {camera}")
-    print(f"  Exposure(ms) : {core.get_exposure()}")
+    cam = core.get_camera_device()
+    print(f"  Camera         : {cam}")
+    print(f"  Exposure (ms)  : {core.get_exposure()}")
 
     try:
         slm = core.get_slm_device()
-        print(f"  SLM/DMD      : {slm}")
-        print(f"  DMD size     : {core.get_slm_width(slm)} x {core.get_slm_height(slm)} px")
+        print(f"  SLM/DMD        : {slm}")
+        print(f"  DMD size       : {core.get_slm_width(slm)} x {core.get_slm_height(slm)} px")
     except Exception:
-        print("  SLM/DMD      : (not auto-detected — check Device Property Browser)")
+        print("  SLM/DMD        : (not detected -- check Device Property Browser)")
 
     try:
         shutter = core.get_shutter_device()
-        print(f"  Shutter      : {shutter}")
-        print(f"  Shutter open : {core.get_shutter_open()}")
+        print(f"  Shutter        : {shutter}")
+        print(f"  Shutter open   : {core.get_shutter_open()}")
+        print(f"  AutoShutter    : {core.get_auto_shutter()}")
     except Exception:
-        print("  Shutter      : (not auto-detected)")
+        print("  Shutter        : (not detected)")
+
+    try:
+        led_val = core.get_property(LED_DEVICE, LED_PROP)
+        print(f"  LED Brightness : {led_val} / 255  (device: {LED_DEVICE})")
+    except Exception:
+        print(f"  LED Brightness : (could not read {LED_DEVICE}.{LED_PROP})")
 
     print()
-    print("  All available devices:")
-    for dev in list(core.get_loaded_devices()):
+    print("  All loaded devices:")
+    for dev in _to_list(core.get_loaded_devices()):
         print(f"    - {dev}")
 
-    print("=" * 50)
+    print("=" * 52)
     return core
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 1: Single camera snap
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def test_camera_snap(core) -> np.ndarray:
     """
-    Capture a single image (no live mode).
-    Prints image dimensions and pixel value range.
-    Confirms the camera is responding.
+    Capture a single image without live mode.
+    Confirms camera is responding. No DMD or LED involved.
 
-    What to look for:
-    - Shape should match sensor resolution (3200×2200 for Photometrics Moment,
-      or smaller if ROI / binning is set)
-    - Pixel range 0–4095 for 12-bit camera (never hard-code max value)
+    Expected:
+        Image shape : (2200, 3200)
+        Pixel range : 0 - ~4095  (12-bit)
+        Bit depth   : uint16
     """
-    print("\n[STEP 1] Camera snap (single frame)")
-
-    # Stop live mode if running — snap and live can't coexist
+    print("\n[STEP 1] Camera snap (single frame, no live mode)")
     stop_live(core)
 
     core.snap_image()
     tagged = core.get_tagged_image()
-
     h = tagged.tags["Height"]
     w = tagged.tags["Width"]
     image = np.reshape(tagged.pix, (h, w))
 
     print(f"  Image shape  : {image.shape}")
-    print(f"  Pixel range  : {image.min()} – {image.max()}")
+    print(f"  Pixel range  : {image.min()} - {image.max()}")
     print(f"  Bit depth    : {image.dtype}")
     print("  Camera snap OK.")
     return image
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 2: Live mode — continuous capture and save
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
-def test_live_mode_snap(core, duration_sec: float = 5.0, save_dir: str = "live_mode_images"):
+def test_live_mode_snap(core, duration_sec: float = 5.0,
+                         save_dir: str = "live_mode_images"):
     """
-    Start live mode, grab frames from the buffer for `duration_sec` seconds,
-    and save each frame as a TIFF.
+    Start live mode, grab frames from buffer for duration_sec seconds,
+    and save each as a TIFF.
 
-    Uses get_last_tagged_image() — the correct method during live acquisition.
+    Uses get_last_tagged_image() -- correct method during live acquisition.
     Never call snap_image() while live mode is running.
 
     What to look for:
-    - Frames saved without gaps or errors
-    - Consistent image shape across all frames
-    - No "buffer overrun" errors (reduce frame rate if this happens)
+        - Frames saved without errors
+        - Consistent shape across all frames
+        - No buffer overrun errors (reduce time.sleep rate if needed)
     """
-    print(f"\n[STEP 2] Live mode snap — {duration_sec:.1f} seconds")
-
+    print(f"\n[STEP 2] Live mode snap -- {duration_sec:.1f} seconds")
     ensure_dir(save_dir)
 
     try:
+        apply_bf_preset(core)
         start_live(core)
 
         start_time = time.time()
         count = 0
-
         while time.time() - start_time < duration_sec:
             image = grab_frame(core)
-            filename = os.path.join(save_dir, f"frame_{count:04d}.tiff")
-            save_tiff(image, filename)
+            save_tiff(image, os.path.join(save_dir, f"frame_{count:04d}.tiff"))
             count += 1
-            time.sleep(0.1)   # ~10 fps save rate; camera runs at full speed in buffer
+            time.sleep(0.1)   # ~10 fps save rate
 
-        print(f"  Captured and saved {count} frames to '{save_dir}/'")
+        print(f"  Saved {count} frames to '{save_dir}/'")
         print("  Live mode snap OK.")
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
-        stop_live(core)
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 3: Shutter toggle (LED on/off)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def test_shutter_toggle(core, toggle_seconds: float = 3.0):
     """
-    Open and close the shutter (X-Cite LED) for visual confirmation.
-    Watch the stage — light should visibly turn on and off.
+    Open and close the XCite-120PC shutter for visual confirmation.
+    Disables AutoShutter first so manual control works.
+
+    Watch the stage -- light should visibly turn on and off.
 
     What to look for:
-    - Light on sample appears and disappears
-    - No error from the shutter device
+        - Light on sample appears and disappears
+        - Shutter state printed matches visual observation
     """
-    print("\n[STEP 3] Shutter toggle (LED on/off)")
+    print("\n[STEP 3] Shutter toggle (XCite-120PC LED on/off)")
 
     try:
-        print("  -> Shutter ON  (watch the stage)")
+        # Disable AutoShutter so MM doesn't override our manual open/close
+        core.set_auto_shutter(False)
+        print("  -> AutoShutter disabled")
+
+        print("  -> Shutter OPEN  (watch the stage)")
         core.set_shutter_open(True)
         print(f"     Shutter state: {core.get_shutter_open()}")
         time.sleep(toggle_seconds)
 
-        print("  -> Shutter OFF")
+        print("  -> Shutter CLOSED")
         core.set_shutter_open(False)
         print(f"     Shutter state: {core.get_shutter_open()}")
         time.sleep(toggle_seconds)
@@ -334,95 +419,127 @@ def test_shutter_toggle(core, toggle_seconds: float = 3.0):
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
         core.set_shutter_open(False)
+        core.set_auto_shutter(True)
+        print("  AutoShutter restored to ON.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# STEP 4: DMD full-on / full-off pattern
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# STEP 4: DMD full ON / full OFF
+# -----------------------------------------------------------------------------
 
 def test_pure_dmd_control(core):
     """
-    Toggle ALL DMD mirrors ON, then OFF.
-    Runs in live mode so you can watch the result in real time.
+    Toggle ALL DMD mirrors to ON state, then OFF state.
+    Applies BF preset first so shutter is open and LED is at correct brightness.
 
-    DMD pixel values: 255 = mirror ON (light reflected to sample)
-                       0  = mirror OFF (light dumped away)
+    Tests TWO different API methods to find which one actually triggers the hardware:
+
+    Method A -- set_slm_image() + display_slm_image()
+        Two-step: upload pattern to buffer, then apply.
+        Standard SLM API path.
+
+    Method B -- set_slm_pixels_to()
+        Single-step: set all pixels to one value instantly.
+        Closer to what GUI "All Pixels" button does internally.
+        Try this if Method A produces no visible change.
+
+    Both shutter AND DMD must be ON for light to reach the sample:
+        X-Cite LED ON  +  DMD mirrors ON state (255)  ->  light reaches sample
+        X-Cite LED ON  +  DMD mirrors OFF state (0)   ->  light goes to dump
 
     What to look for:
-    - Full bright field when all mirrors ON
-    - Complete darkness (or near-dark) when all mirrors OFF
-    - The LED shutter must be open for this to be visible
-
-    Troubleshooting:
-    - If nothing happens, check SLM device name in connect() output
-    - If only partial change, check if auto-shutter is interfering
+        - Bright circular light on stage when all mirrors ON
+        - Dark when all mirrors OFF (LED still on, light dumped to absorber)
+        - If Method A shows no change but Method B does -> use set_slm_pixels_to()
+        - If neither works -> check apply_bf_preset() output above
     """
-    print("\n[STEP 4] DMD full-on / full-off test")
+    print("\n[STEP 4] DMD full ON / full OFF test")
 
     slm = core.get_slm_device()
     w = core.get_slm_width(slm)
     h = core.get_slm_height(slm)
-    print(f"  DMD device : {slm}  ({w} x {h} px)")
+    print(f"  DMD: {slm}  ({w} x {h} px)")
 
     full_on  = np.full((h, w), 255, dtype=np.uint8)
     full_off = np.zeros((h, w),     dtype=np.uint8)
 
     try:
+        apply_bf_preset(core)
         start_live(core)
-        led_on(core)
 
-        # Pre-load a safe off state first (best practice)
+        # -- Method A: set_slm_image() + display_slm_image() -----------------
+        print("\n  [Method A] set_slm_image() + display_slm_image()")
+        print("             Watch stage for 5 seconds each.")
+
         core.set_slm_image(slm, full_off)
         core.display_slm_image(slm)
         time.sleep(0.5)
 
-        print("  -> DMD ON  (all mirrors reflecting — look at stage)")
+        print("  -> DMD ON  (set_slm_image + display_slm_image)")
         core.set_slm_image(slm, full_on)
         core.display_slm_image(slm)
-        time.sleep(3.0)
+        time.sleep(5.0)
 
-        print("  -> DMD OFF (all mirrors dumped)")
+        print("  -> DMD OFF")
         core.set_slm_image(slm, full_off)
         core.display_slm_image(slm)
         time.sleep(3.0)
 
-        print("  DMD on/off test OK.")
+        # -- Method B: set_slm_pixels_to() ------------------------------------
+        # Single call -- no separate display step needed.
+        # Equivalent to GUI "All Pixels" button.
+        # print("\n  [Method B] set_slm_pixels_to()  (closer to GUI \'All Pixels\')")
+        # print("             Watch stage for 5 seconds each.")
+
+        # try:
+        #     print("  -> DMD ON  (set_slm_pixels_to 255)")
+        #     core.set_slm_pixels_to(slm, 255)
+        #     time.sleep(5.0)
+
+        #     print("  -> DMD OFF (set_slm_pixels_to 0)")
+        #     core.set_slm_pixels_to(slm, 0)
+        #     time.sleep(3.0)
+
+        #     print("  Method B OK.")
+        # except Exception as method_b_err:
+        #     print(f"  [Method B ERROR] {method_b_err}")
+        #     print("  -> set_slm_pixels_to() not supported -- stick with Method A.")
+
+        # print("\n  DMD ON/OFF test complete.")
+        # print("  Which method produced visible light change on stage?")
+        # print("  -> If Method A: keep using set_slm_image() + display_slm_image()")
+        # print("  -> If Method B: switch to set_slm_pixels_to() in all functions")
+        # print("  -> If neither:  check apply_bf_preset() output above")
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
-        dmd_safe_off(core)
-        stop_live(core)
-        core.set_shutter_open(False)
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# STEP 5: Brightness via camera exposure (correct method for Mosaic3)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# STEP 5: Brightness via camera exposure
+# -----------------------------------------------------------------------------
 
 def test_dmd_brightness_camera(core,
-                                exposures_ms: tuple = (20, 100, 500),
+                                exposures_ms: tuple = (5, 10, 30),
                                 save_dir: str = "brightness_test"):
     """
-    Adjust apparent brightness by changing CAMERA exposure time.
-    All DMD mirrors stay ON throughout — this isolates the exposure effect.
+    Adjust image brightness by changing camera exposure time.
+    All DMD mirrors stay ON. BF preset applied first.
 
-    Why camera exposure, not set_slm_exposure()?
-    - Andor Mosaic3 does NOT support set_slm_exposure() via pycromanager.
-    - Camera exposure is the standard knob for controlling image brightness
-      in a brightfield / DMD-patterned fluorescence setup.
-    - Longer exposure = more photons collected = brighter image.
+    Primary brightness knob for this setup:
+        LED Brightness (TransmittedIllumination 2) -- range 0-255, BF default=255
+    Camera exposure (default 10ms) is a secondary knob.
+        Longer = brighter but particle motion blur increases.
+        Recommendation: keep at 10ms for particle tracking.
 
-    What to look for in the saved TIFFs:
-    - 20ms  → dim image, low pixel values
-    - 100ms → moderate brightness
-    - 500ms → bright image (may saturate — check pixel max vs bit depth)
-
-    Adjust exposure values based on your sample and light source intensity.
+    What to look for in saved TIFFs:
+        5ms  -> dim
+        10ms -> lab baseline
+        30ms -> brighter, check for particle blur
     """
     print("\n[STEP 5] Camera exposure brightness test")
     ensure_dir(save_dir)
@@ -430,14 +547,12 @@ def test_dmd_brightness_camera(core,
     slm = core.get_slm_device()
     w   = core.get_slm_width(slm)
     h   = core.get_slm_height(slm)
-
     full_on = np.full((h, w), 255, dtype=np.uint8)
 
     try:
+        apply_bf_preset(core)
         start_live(core)
-        led_on(core)
 
-        # DMD all mirrors ON
         core.set_slm_image(slm, full_on)
         core.display_slm_image(slm)
         time.sleep(1.0)
@@ -448,51 +563,48 @@ def test_dmd_brightness_camera(core,
         for exp in exposures_ms:
             core.set_exposure(float(exp))
             actual = core.get_exposure()
-            print(f"  -> Camera exposure: {actual} ms")
-            time.sleep(1.5)   # wait for buffer to fill with new-exposure frames
+            print(f"  -> Exposure: {actual} ms")
+            time.sleep(1.5)
 
             image = grab_frame(core)
-            print(f"     Pixel range: {image.min()} – {image.max()}")
+            print(f"     Pixel range: {image.min()} - {image.max()}")
+            save_tiff(image, os.path.join(save_dir, f"exp_{int(exp)}ms.tiff"))
 
-            filename = os.path.join(save_dir, f"exp_{int(exp)}ms.tiff")
-            save_tiff(image, filename)
-
-        # Restore original exposure
         core.set_exposure(original_exp)
-        print(f"  Camera exposure restored to {original_exp} ms")
+        print(f"  Exposure restored to {original_exp} ms")
         print(f"  Images saved to '{save_dir}/'")
-        print("  Brightness test OK.")
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
-        dmd_safe_off(core)
-        stop_live(core)
-        core.set_shutter_open(False)
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 6: Partial DMD pattern — spatial light control
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def test_dmd_partial_pattern(core, save_dir: str = "pattern_test"):
     """
-    Send a non-uniform spatial pattern to the DMD.
+    Send non-uniform spatial patterns to the DMD.
     Tests that we can control WHERE light hits the sample.
+    BF preset applied first.
 
-    Patterns tested:
-    - Left half ON  / right half OFF
-    - Right half ON / left half OFF
-    - Center circle ON / rest OFF
-    - Checkerboard (64x64 block size)
+    Pixels 255 -> mirror ON  -> light reaches sample at that position
+    Pixels 0   -> mirror OFF -> light dumped at that position
 
-    This is the foundation for RL-controlled light patterning.
+    Patterns:
+        left_half     : left half of DMD ON
+        right_half    : right half ON
+        center_circle : center circular region ON
+        checkerboard  : 64px alternating blocks
+
+    This is the action space foundation for the RL loop.
 
     What to look for:
-    - Visible spatial difference in illumination between patterns
-    - Sharp boundary between lit and dark regions
-    - If boundary looks blurry: check DMD-to-sample alignment / focus
+        - Visible spatial difference in illumination between patterns
+        - Sharp boundary between lit and dark regions
+        - Blurry boundary -> check DMD-to-sample alignment / focus
     """
     print("\n[STEP 6] Partial DMD pattern test")
     ensure_dir(save_dir)
@@ -502,24 +614,18 @@ def test_dmd_partial_pattern(core, save_dir: str = "pattern_test"):
     h   = core.get_slm_height(slm)
     print(f"  DMD: {slm}  ({w} x {h} px)")
 
-    # Build patterns
-    # Pattern A: left half ON
     left_half = np.zeros((h, w), dtype=np.uint8)
     left_half[:, :w//2] = 255
 
-    # Pattern B: right half ON
     right_half = np.zeros((h, w), dtype=np.uint8)
     right_half[:, w//2:] = 255
 
-    # Pattern C: center circle ON
     center_circle = np.zeros((h, w), dtype=np.uint8)
     cy, cx = h // 2, w // 2
     radius = min(h, w) // 4
     yy, xx = np.ogrid[:h, :w]
-    mask = (yy - cy)**2 + (xx - cx)**2 <= radius**2
-    center_circle[mask] = 255
+    center_circle[(yy - cy)**2 + (xx - cx)**2 <= radius**2] = 255
 
-    # Pattern D: checkerboard (64px blocks)
     block = 64
     checkerboard = np.zeros((h, w), dtype=np.uint8)
     for row in range(0, h, block):
@@ -528,15 +634,15 @@ def test_dmd_partial_pattern(core, save_dir: str = "pattern_test"):
                 checkerboard[row:row+block, col:col+block] = 255
 
     patterns = [
-        ("left_half",      left_half),
-        ("right_half",     right_half),
-        ("center_circle",  center_circle),
-        ("checkerboard",   checkerboard),
+        ("left_half",     left_half),
+        ("right_half",    right_half),
+        ("center_circle", center_circle),
+        ("checkerboard",  checkerboard),
     ]
 
     try:
+        apply_bf_preset(core)
         start_live(core)
-        led_on(core)
 
         for name, pattern in patterns:
             print(f"  -> Pattern: {name}")
@@ -545,75 +651,76 @@ def test_dmd_partial_pattern(core, save_dir: str = "pattern_test"):
             time.sleep(2.0)
 
             image = grab_frame(core)
-            print(f"     Pixel range: {image.min()} – {image.max()}")
+            print(f"     Pixel range: {image.min()} - {image.max()}")
             save_tiff(image, os.path.join(save_dir, f"pattern_{name}.tiff"))
 
-        print(f"  Pattern images saved to '{save_dir}/'")
+        print(f"  Images saved to '{save_dir}/'")
         print("  Partial pattern test OK.")
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
-        dmd_safe_off(core)
-        stop_live(core)
-        core.set_shutter_open(False)
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# STEP 7: LED vs DMD 독립 제어 — 3가지 조합 확인
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# STEP 7: LED vs DMD independence — 3 combination test
+# -----------------------------------------------------------------------------
 
-def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dmd_separation"):
+def test_led_dmd_separation(core, hold_sec: float = 3.0,
+                             save_dir: str = "led_dmd_separation"):
     """
-    LED(shutter)와 DMD(SLM)가 코드에서 완전히 독립된 두 개의 API임을 확인하는 테스트.
+    Confirm that XCite-120PC (shutter/LED) and Mosaic3 (DMD) are independent.
 
-    물리적 구조:
-        X-Cite LED  → 빛을 '있게 / 없게'  (set_shutter_open)
-        Andor Mosaic3 → 빛을 '어디에'     (set_slm_image + display_slm_image)
-        둘 다 ON이어야 샘플에 빛이 닿음.
+    Applies BF preset first so LED brightness and camera exposure are at
+    correct baseline values before testing.
 
-    테스트 조합 (각 hold_sec초 동안 유지하며 카메라 스냅 저장):
+    Physical structure:
+        XCite-120PC (shutter) -> whether light EXISTS  (set_shutter_open)
+        Mosaic3 (DMD)         -> WHERE light goes      (set_slm_image + display)
+        Both must be ON for light to reach the sample.
 
-        조합 A — LED ON  / DMD OFF
-            → 빛이 LED에서 나오지만 DMD 거울이 전부 dump 방향
-            → 샘플에 아무것도 안 닿아야 정상 (어두운 이미지)
-            → 확인 포인트: 카메라 이미지가 거의 0에 가까운 픽셀값
+    Test combinations (each held for hold_sec seconds):
 
-        조합 B — LED ON  / DMD ON (full)
-            → 풀 brightfield — 가장 밝은 상태
-            → 확인 포인트: 픽셀값이 조합 A보다 훨씬 높음
+        Combination A -- LED ON  / DMD OFF
+            -> Light from XCite but all Mosaic3 mirrors in dump direction
+            -> Expected: dark image (pixel mean close to 0)
 
-        조합 C — LED OFF / DMD ON (full)
-            → DMD 거울은 켜져 있지만 광원이 없음
-            → 샘플에 빛 없음 (조합 A와 비슷하게 어두워야 함)
-            → 확인 포인트: DMD 단독으로는 빛을 못 만든다는 것을 수치로 확인
+        Combination B -- LED ON  / DMD ON (full)
+            -> Full brightfield -- brightest state
+            -> Expected: highest pixel mean
 
-    결과 해석:
-        mean(B) >> mean(A) ≈ mean(C)  →  두 장치가 독립적으로 잘 동작함
-        mean(A) ≈ mean(B)             →  shutter API가 DMD에 연결 안 됐을 가능성
-        mean(B) ≈ mean(C)             →  SLM device가 제대로 안 잡혔을 가능성
+        Combination C -- LED OFF / DMD ON (full)
+            -> All mirrors in ON state but no light source
+            -> Expected: dark image (same as A)
+            -> Confirms Mosaic3 cannot generate light on its own
+
+    Result interpretation:
+        mean(B) >> mean(A) ~= mean(C)  ->  both devices operating correctly
+        mean(A) ~= mean(B)             ->  shutter API not controlling XCite-120PC
+        mean(B) ~= mean(C)             ->  Mosaic3 not responding to pattern commands
     """
-    print("\n[STEP 7] LED / DMD 독립 제어 분리 테스트")
+    print("\n[STEP 7] LED / DMD independence test")
     ensure_dir(save_dir)
 
     slm = core.get_slm_device()
     w   = core.get_slm_width(slm)
     h   = core.get_slm_height(slm)
-    print(f"  SLM device : {slm}  ({w} x {h} px)")
+    print(f"  DMD: {slm}  ({w} x {h} px)")
 
     full_on  = np.full((h, w), 255, dtype=np.uint8)
     full_off = np.zeros((h, w),     dtype=np.uint8)
-
-    results = {}   # 조합별 픽셀 평균 저장 → 나중에 비교
+    results  = {}
 
     try:
+        # Apply BF preset to set LED brightness=255 and exposure=10ms baseline
+        # then disable AutoShutter for manual control
+        apply_bf_preset(core)
         start_live(core)
 
-        # ── 조합 A: LED ON / DMD OFF ──────────────────────────────────────
-        print("\n  [조합 A] LED ON  /  DMD OFF")
-        print("           기대: 카메라 이미지 어두움 (거울이 빛을 dump 방향으로)")
-
+        # -- Combination A: LED ON / DMD OFF ----------------------------------
+        print("\n  [Combo A] LED ON  /  DMD OFF (all mirrors -> dump)")
+        print("            Expected: dark image")
         core.set_shutter_open(True)
         core.set_slm_image(slm, full_off)
         core.display_slm_image(slm)
@@ -623,12 +730,11 @@ def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dm
         img_a = grab_frame(core)
         save_tiff(img_a, os.path.join(save_dir, "A_led_on__dmd_off.tiff"))
         results["A  LED ON  / DMD OFF"] = img_a.mean()
-        print(f"    픽셀 평균: {img_a.mean():.1f}  |  range: {img_a.min()} – {img_a.max()}")
+        print(f"    pixel mean: {img_a.mean():.1f}  |  range: {img_a.min()} - {img_a.max()}")
 
-        # ── 조합 B: LED ON / DMD ON (full brightfield) ────────────────────
-        print("\n  [조합 B] LED ON  /  DMD ON  (full brightfield)")
-        print("           기대: 가장 밝은 이미지")
-
+        # -- Combination B: LED ON / DMD ON -----------------------------------
+        print("\n  [Combo B] LED ON  /  DMD ON  (full brightfield)")
+        print("            Expected: brightest image")
         core.set_shutter_open(True)
         core.set_slm_image(slm, full_on)
         core.display_slm_image(slm)
@@ -638,12 +744,11 @@ def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dm
         img_b = grab_frame(core)
         save_tiff(img_b, os.path.join(save_dir, "B_led_on__dmd_on.tiff"))
         results["B  LED ON  / DMD ON "] = img_b.mean()
-        print(f"    픽셀 평균: {img_b.mean():.1f}  |  range: {img_b.min()} – {img_b.max()}")
+        print(f"    pixel mean: {img_b.mean():.1f}  |  range: {img_b.min()} - {img_b.max()}")
 
-        # ── 조합 C: LED OFF / DMD ON ──────────────────────────────────────
-        print("\n  [조합 C] LED OFF /  DMD ON")
-        print("           기대: DMD 단독으로는 빛 없음 — 조합 A와 비슷하게 어두워야 함")
-
+        # -- Combination C: LED OFF / DMD ON ----------------------------------
+        print("\n  [Combo C] LED OFF /  DMD ON  (no light source)")
+        print("            Expected: dark image (DMD cannot generate light)")
         core.set_shutter_open(False)
         core.set_slm_image(slm, full_on)
         core.display_slm_image(slm)
@@ -653,58 +758,51 @@ def test_led_dmd_separation(core, hold_sec: float = 3.0, save_dir: str = "led_dm
         img_c = grab_frame(core)
         save_tiff(img_c, os.path.join(save_dir, "C_led_off__dmd_on.tiff"))
         results["C  LED OFF / DMD ON "] = img_c.mean()
-        print(f"    픽셀 평균: {img_c.mean():.1f}  |  range: {img_c.min()} – {img_c.max()}")
+        print(f"    pixel mean: {img_c.mean():.1f}  |  range: {img_c.min()} - {img_c.max()}")
 
-        # ── 결과 요약 ─────────────────────────────────────────────────────
-        print("\n  " + "─" * 44)
-        print("  결과 요약 (픽셀 평균값 비교)")
-        print("  " + "─" * 44)
+        # -- Result summary ---------------------------------------------------
+        print("\n  " + "-" * 46)
+        print("  Result summary (pixel mean)")
+        print("  " + "-" * 46)
         for label, mean_val in results.items():
-            bar = "█" * int(mean_val / 40)   # 간단한 ASCII 바
+            bar = "#" * min(int(mean_val / 40), 40)
             print(f"  {label}  {mean_val:7.1f}  {bar}")
-        print("  " + "─" * 44)
+        print("  " + "-" * 46)
 
-        b_val = results["B  LED ON  / DMD ON "]
-        a_val = results["A  LED ON  / DMD OFF"]
-        c_val = results["C  LED OFF / DMD ON "]
+        b = results["B  LED ON  / DMD ON "]
+        a = results["A  LED ON  / DMD OFF"]
+        c = results["C  LED OFF / DMD ON "]
 
-        if b_val > a_val * 1.5 and b_val > c_val * 1.5:
-            print("  판정: OK — LED와 DMD가 독립적으로 정상 동작")
-        elif a_val > b_val * 0.8:
-            print("  판정: 주의 — shutter API가 DMD와 제대로 분리되지 않았을 수 있음")
-            print("         Device Property Browser에서 shutter device 이름 재확인 필요")
-        elif c_val > b_val * 0.8:
-            print("  판정: 주의 — SLM device가 제대로 잡히지 않았을 수 있음")
-            print("         core.get_slm_device() 반환값 재확인 필요")
+        if b > a * 1.5 and b > c * 1.5:
+            print("  Result: OK -- XCite-120PC and Mosaic3 operating independently")
+        elif a > b * 0.8:
+            print("  Result: WARNING -- shutter API may not be controlling XCite-120PC")
+            print("          Check SHUTTER_DEVICE constant at top of file")
+        elif c > b * 0.8:
+            print("  Result: WARNING -- Mosaic3 may not be responding to pattern commands")
+            print("          Check DMD_DEVICE constant and SLM assignment in MM")
 
-        print(f"\n  이미지 저장 위치: '{save_dir}/'")
-        print("  LED/DMD 분리 테스트 완료.")
+        print(f"\n  Images saved to '{save_dir}/'")
 
     except Exception as e:
         print(f"[ERROR] {e}")
-
     finally:
-        dmd_safe_off(core)
-        stop_live(core)
-        core.set_shutter_open(False)
-        print("  [SAFETY] 셔터 닫힘, DMD off, live mode 종료.")
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# INVENTORY: print all controllable device properties
-# ─────────────────────────────────────────────────────────────────────────────
-
+# -----------------------------------------------------------------------------
+# INVENTORY: print all device properties
+# -----------------------------------------------------------------------------
 def print_device_properties(core):
     """
-    Print every controllable property for all loaded devices.
-    Run this once in the lab to discover what knobs are available.
-    Output is long — pipe to a file:
-        python -c "import basic_test; c=basic_test.connect(); basic_test.print_device_properties(c)" > properties.txt
+    Print every property for all loaded devices.
+    Redirect to file for easier reading:
+        python -c "import basic_test_v4 as t; c=t.connect(); t.print_device_properties(c)" > props.txt
     """
     print("\n[INVENTORY] All device properties")
     print("=" * 60)
-    for device in list(core.get_loaded_devices()):
-        props = core.get_device_property_names(device)
+    for device in _to_list(core.get_loaded_devices()):
+        props = _to_list(core.get_device_property_names(device))
         if props:
             print(f"\n  [{device}]")
             for prop in props:
@@ -715,94 +813,67 @@ def print_device_properties(core):
                     print(f"    {prop}: (unreadable)")
     print("=" * 60)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CALIBRATION TOOL A: config 파일 파싱 (MM 연결 불필요 — USB .cfg 오프라인 읽기)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def inspect_config_file(cfg_path: str = "Olympus IX83 System2.cfg"):
+# -----------------------------------------------------------------------------
+# CALIBRATION TOOL A: config file parser (no MM connection needed)
+# -----------------------------------------------------------------------------
+def inspect_config_file(cfg_path: str = "C:\\Program Files\\Micro-Manager-2.0\\Olympus IX83 System2.cfg"):
     """
-    Micro-Manager .cfg 파일을 파싱해서 장치 설정과 calibration 값을 출력.
-    MM이 꺼져 있어도 실행 가능 — USB에서 파일 경로만 지정하면 됨.
+    Parse a Micro-Manager .cfg file and print device settings and calibration values.
+    MM does not need to be running.
 
-    사용법:
-        inspect_config_file("D:/Olympus IX83 System2.cfg")   # USB 경로
-        inspect_config_file("/Volumes/USB/Olympus IX83 System2.cfg")  # Mac
-
-    .cfg 파일 구조 (Micro-Manager 포맷):
-        # Device,DeviceName,AdapterName,LibraryName
-        Device,Camera,PhotometricsCamera,Moment
-        # Property,DeviceName,PropertyName,Value
-        Property,Camera,Exposure,100
-        # PixelSize_um,ConfigName,Resolution
-        PixelSize_um,10x,0.65
-
-    출력 섹션:
-        [장치 목록]       — 로드된 모든 device와 adapter
-        [Pixel Size]      — 배율별 µm/pixel calibration
-        [Channel Groups]  — Brightfield / Fluorescence preset 설정값
-        [Device Properties] — 각 장치의 초기 property 값 (exposure, binning 등)
-        [System Properties] — StartupScript, CoreCamera 등 시스템 설정
+    Usage:
+        inspect_config_file()  -- uses default path above
+        inspect_config_file("D:/Olympus IX83 System2.cfg")  -- USB copy
     """
-    print(f"\n[CONFIG] 파일 파싱: {cfg_path}")
+    print(f"\n[CONFIG] Parsing: {cfg_path}")
     print("=" * 60)
 
     if not os.path.exists(cfg_path):
-        print(f"[ERROR] 파일을 찾을 수 없음: {cfg_path}")
-        print("  → cfg_path 인자에 정확한 경로를 입력하세요.")
-        print("  → 예: inspect_config_file('D:/Olympus IX83 System2.cfg')")
+        print(f"[ERROR] File not found: {cfg_path}")
+        print("  -> Check the path and try again.")
         return
 
-    devices       = []   # (DeviceName, AdapterName, Library)
-    pixel_sizes   = []   # (ConfigName, um_per_pixel)
-    properties    = {}   # DeviceName → [(PropName, Value)]
-    channel_groups = {}  # GroupName → [(ConfigName, DeviceName, PropName, Value)]
-    system_props  = []   # (PropName, Value)
+    devices        = []
+    pixel_sizes    = []
+    properties     = {}
+    channel_groups = {}
+    system_props   = []
 
     with open(cfg_path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-
             parts = line.split(",")
             tag = parts[0]
 
             if tag == "Device" and len(parts) >= 4:
                 devices.append((parts[1], parts[2], parts[3]))
-
             elif tag == "Property" and len(parts) >= 4:
                 dev, prop, val = parts[1], parts[2], parts[3]
                 if dev == "Core":
                     system_props.append((prop, val))
                 else:
                     properties.setdefault(dev, []).append((prop, val))
-
             elif tag == "PixelSize_um" and len(parts) >= 3:
                 pixel_sizes.append((parts[1], parts[2]))
-
             elif tag == "ConfigGroup" and len(parts) >= 6:
-                # ConfigGroup,GroupName,ConfigName,DeviceName,PropName,Value
                 group, cfg_name, dev, prop, val = parts[1], parts[2], parts[3], parts[4], parts[5]
                 channel_groups.setdefault(group, {}).setdefault(cfg_name, []).append(
-                    (dev, prop, val)
-                )
+                    (dev, prop, val))
 
-    # ── 장치 목록 ────────────────────────────────────────────────────────
-    print(f"\n  [장치 목록]  ({len(devices)}개)")
+    print(f"\n  [Device list]  ({len(devices)} devices)")
     for name, adapter, lib in devices:
-        print(f"    {name:<20}  adapter={adapter}  lib={lib}")
+        print(f"    {name:<25} adapter={adapter}")
 
-    # ── Pixel Size Calibration ────────────────────────────────────────────
-    print(f"\n  [Pixel Size Calibration]")
+    print(f"\n  [Pixel size calibration]")
     if pixel_sizes:
         for cfg_name, um in pixel_sizes:
-            print(f"    {cfg_name:<15}  {um} µm/pixel")
+            print(f"    {cfg_name:<15} {um} um/pixel")
     else:
-        print("    (설정 없음 — MM GUI에서 Pixel Size Config 확인 필요)")
+        print("    (not configured -- set in MM GUI > Pixel Size Config)")
 
-    # ── Channel Groups (Brightfield / Fluorescence preset) ───────────────
-    print(f"\n  [Channel Groups]")
+    print(f"\n  [Channel groups]")
     if channel_groups:
         for group_name, configs in channel_groups.items():
             print(f"\n    Group: {group_name}")
@@ -811,458 +882,364 @@ def inspect_config_file(cfg_path: str = "Olympus IX83 System2.cfg"):
                 for dev, prop, val in settings:
                     print(f"        {dev}.{prop} = {val}")
     else:
-        print("    (Channel Group 설정 없음)")
+        print("    (none)")
 
-    # ── Device Properties (초기값) ────────────────────────────────────────
-    print(f"\n  [Device Properties (초기값)]")
-    # calibration에 관련된 키워드 우선 출력
-    priority_keywords = ["exposure", "binning", "pixeltype", "gain",
-                         "readout", "triggermode", "bitdepth", "roi",
-                         "speed", "port", "offset", "multiplier"]
+    priority_kw = ["exposure", "binning", "pixeltype", "gain", "readout",
+                   "triggermode", "bitdepth", "roi", "speed", "port",
+                   "offset", "multiplier", "brightness"]
+    print(f"\n  [Device properties (initial values)]")
     for dev_name, props in properties.items():
         print(f"\n    [{dev_name}]")
-        # 우선순위 항목 먼저
-        priority = [(p, v) for p, v in props
-                    if any(k in p.lower() for k in priority_keywords)]
-        others   = [(p, v) for p, v in props
-                    if not any(k in p.lower() for k in priority_keywords)]
+        priority = [(p, v) for p, v in props if any(k in p.lower() for k in priority_kw)]
+        others   = [(p, v) for p, v in props if not any(k in p.lower() for k in priority_kw)]
         for prop, val in priority:
             print(f"      * {prop}: {val}")
         for prop, val in others:
             print(f"        {prop}: {val}")
 
-    # ── System Properties ─────────────────────────────────────────────────
-    print(f"\n  [System Properties (Core)]")
+    print(f"\n  [System properties (Core)]")
     for prop, val in system_props:
         print(f"    {prop}: {val}")
 
     print("\n" + "=" * 60)
-    print(f"  파싱 완료: 장치 {len(devices)}개 / pixel size {len(pixel_sizes)}개 / "
-          f"channel group {len(channel_groups)}개")
+    print(f"  Done: {len(devices)} devices / {len(pixel_sizes)} pixel size entries / "
+          f"{len(channel_groups)} channel groups")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CALIBRATION TOOL B: live state 읽기 (MM 연결 필요)
-# ─────────────────────────────────────────────────────────────────────────────
-
+# -----------------------------------------------------------------------------
+# CALIBRATION TOOL B: live state reader (MM connection required)
+# -----------------------------------------------------------------------------
 def inspect_live_state(core):
     """
-    MM에 연결된 상태에서 현재 calibration 값을 live로 읽어 출력.
-    connect() 이후에 실행.
+    Read current calibration values from MM while connected.
+    Run after connect().
 
-    출력 항목:
-        [카메라]          — exposure, binning, pixel type, ROI, bit depth
-        [Pixel Size]      — 현재 적용된 µm/pixel (objective 배율 기준)
-        [SLM/DMD]         — 해상도, 현재 exposure (지원 시)
-        [Stage]           — XY/Z 현재 위치 (µm)
-        [모든 장치 상태]   — calibration 키워드 포함 property만 필터링
+    Key things to check:
+        - Pixel size (um/pixel) -- if 0.0, configure in MM GUI > Pixel Size Config
+        - LED Brightness current value (should be 255 when BF preset is active)
+        - Mosaic3 ExposureTime (currently 2ms -- may need to increase for visibility)
     """
-    print("\n[LIVE STATE] 현재 Micro-Manager calibration 값")
+    print("\n[LIVE STATE] Current Micro-Manager calibration values")
     print("=" * 60)
 
-    # ── 카메라 ────────────────────────────────────────────────────────────
-    print("\n  [카메라]")
+    print("\n  [Camera]")
     cam = core.get_camera_device()
-    print(f"    Device name  : {cam}")
+    print(f"    Device       : {cam}")
     print(f"    Exposure     : {core.get_exposure()} ms")
     print(f"    Binning      : {core.get_property(cam, 'Binning') if _has_prop(core, cam, 'Binning') else '(n/a)'}")
     print(f"    Pixel type   : {core.get_property(cam, 'PixelType') if _has_prop(core, cam, 'PixelType') else '(n/a)'}")
-
     roi = core.get_roi()
     print(f"    ROI          : x={roi.x} y={roi.y} w={roi.width} h={roi.height}")
     print(f"    Image size   : {core.get_image_width()} x {core.get_image_height()} px")
-    print(f"    Bytes/pixel  : {core.get_bytes_per_pixel()}")
     print(f"    Bit depth    : {core.get_image_bit_depth()} bit")
 
-    # ── Pixel Size Calibration ────────────────────────────────────────────
-    print("\n  [Pixel Size Calibration]")
+    print("\n  [LED / Shutter]")
+    print(f"    Shutter device : {core.get_shutter_device()}")
+    print(f"    Shutter open   : {core.get_shutter_open()}")
+    print(f"    AutoShutter    : {core.get_auto_shutter()}")
+    try:
+        led_val = core.get_property(LED_DEVICE, LED_PROP)
+        print(f"    LED Brightness : {led_val} / 255  ({LED_DEVICE})")
+    except Exception as e:
+        print(f"    LED Brightness : (read failed: {e})")
+
+    print("\n  [Pixel size calibration]")
     try:
         um = core.get_pixel_size_um()
         if um > 0:
-            print(f"    현재 적용값  : {um:.4f} µm/pixel")
-            print(f"    (현재 objective / config 기준)")
-            # pixel size config 목록
-            configs = core.get_available_pixel_size_configs()
+            print(f"    Current value : {um:.4f} um/pixel")
+            configs = _to_list(core.get_available_pixel_size_configs())
             if configs:
-                print(f"    등록된 config:")
+                print(f"    Registered configs:")
                 for cfg in configs:
                     cfg_um = core.get_pixel_size_um_by_id(cfg)
-                    print(f"      {cfg:<15} {cfg_um:.4f} µm/pixel")
+                    print(f"      {cfg:<15} {cfg_um:.4f} um/pixel")
         else:
-            print("    (Pixel Size Config 미설정 — MM GUI > Pixel Size Config에서 설정 필요)")
-            print("    RL에서 실제 µm 단위 필요 시 반드시 설정 필요")
+            print("    (not configured -- required for RL particle position in real units)")
     except Exception as e:
-        print(f"    (읽기 실패: {e})")
+        print(f"    (read failed: {e})")
 
-    # ── SLM / DMD ─────────────────────────────────────────────────────────
     print("\n  [SLM / DMD]")
     try:
         slm = core.get_slm_device()
-        print(f"    Device name  : {slm}")
+        print(f"    Device       : {slm}")
         print(f"    Resolution   : {core.get_slm_width(slm)} x {core.get_slm_height(slm)} px")
-        # exposure 지원 여부 확인 (Mosaic3는 미지원)
         try:
             exp = core.get_slm_exposure(slm)
-            print(f"    SLM exposure : {exp} ms")
+            print(f"    ExposureTime : {exp} ms")
         except Exception:
-            print(f"    SLM exposure : (미지원 — Mosaic3 정상)")
+            print(f"    ExposureTime : (not supported via this API)")
+        # Read directly from device property
+        if _has_prop(core, slm, "ExposureTime"):
+            print(f"    ExposureTime (property) : {core.get_property(slm, 'ExposureTime')} ms")
+        if _has_prop(core, slm, "TriggerMode"):
+            print(f"    TriggerMode  : {core.get_property(slm, 'TriggerMode')}")
     except Exception as e:
-        print(f"    (SLM device 없음: {e})")
+        print(f"    (SLM not found: {e})")
 
-    # ── Stage 위치 ────────────────────────────────────────────────────────
-    print("\n  [Stage 현재 위치]")
+    print("\n  [Stage positions]")
     try:
-        xy_stage = core.get_xy_stage_device()
-        x, y = core.get_x_position(xy_stage), core.get_y_position(xy_stage)
-        print(f"    XY stage     : {xy_stage}")
-        print(f"    X = {x:.3f} µm  |  Y = {y:.3f} µm")
+        xy = core.get_xy_stage_device()
+        print(f"    XY : {xy}  X={core.get_x_position(xy):.1f} um  Y={core.get_y_position(xy):.1f} um")
     except Exception:
-        print("    XY stage: (없거나 읽기 실패)")
+        print("    XY : (not found or read failed)")
     try:
-        z_stage = core.get_focus_device()
-        z = core.get_position(z_stage)
-        print(f"    Z stage      : {z_stage}")
-        print(f"    Z = {z:.3f} µm")
+        z = core.get_focus_device()
+        print(f"    Z  : {z}  Z={core.get_position(z):.1f} um")
     except Exception:
-        print("    Z stage: (없거나 읽기 실패)")
-
-    # ── Calibration 관련 property 필터 (전체 장치) ────────────────────────
-    print("\n  [Calibration 관련 Property (전체 장치 필터)]")
-    cal_keywords = ["calibration", "pixel", "scale", "magnif",
-                    "offset", "gain", "readout", "bitdepth",
-                    "binning", "triggermode", "exposure", "speed"]
-    for device in list(core.get_loaded_devices()):
-        try:
-            props = core.get_device_property_names(device)
-        except Exception:
-            continue
-        matched = []
-        for prop in props:
-            if any(k in prop.lower() for k in cal_keywords):
-                try:
-                    val = core.get_property(device, prop)
-                    matched.append((prop, val))
-                except Exception:
-                    pass
-        if matched:
-            print(f"\n    [{device}]")
-            for prop, val in matched:
-                print(f"      {prop}: {val}")
+        print("    Z  : (not found or read failed)")
 
     print("\n" + "=" * 60)
-    print("  live state 읽기 완료.")
+    print("  Live state read complete.")
 
-
-def _has_prop(core, device: str, prop_name: str) -> bool:
-    """장치에 해당 property가 존재하는지 확인하는 헬퍼."""
-    try:
-        return prop_name in core.get_device_property_names(device)
-    except Exception:
-        return False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# BASELINE: 랩 세팅 저장 & 복구
-# ─────────────────────────────────────────────────────────────────────────────
-
-# 복구 대상 property 목록 — 실험 중 바뀔 수 있는 것만 선택적으로 저장
-# (read-only property나 하드웨어 고유값은 set이 안 되므로 제외)
+# -----------------------------------------------------------------------------
+# BASELINE: save and restore lab settings
+# -----------------------------------------------------------------------------
 _RESTORE_KEYWORDS = [
-    "exposure", "binning", "pixeltype", "gain",
-    "readout", "triggermode", "speed", "offset",
-    "multiplier", "port", "bitdepth",
+    "exposure", "binning", "pixeltype", "gain", "readout",
+    "triggermode", "speed", "offset", "multiplier",
+    "bitdepth", "brightness",
 ]
-
-import json
-from datetime import datetime
 
 
 def save_baseline(core, save_path: str = "baseline_settings.json"):
     """
-    랩 도착 시 현재 세팅을 JSON으로 저장.
-    실험 중 설정이 바뀌어도 restore_baseline()으로 원복 가능.
+    Save current MM settings to JSON at the start of a lab session.
+    Run immediately after connect() -- before any experiments.
 
-    저장 항목:
-        - 카메라 exposure, binning, pixel type
-        - 각 장치의 복구 가능한 property (read-only 제외)
-        - 저장 시각 타임스탬프
-
-    사용법:
+    Usage:
         core = connect()
-        save_baseline(core)           # 랩 도착 직후
-        ... 실험 진행 ...
-        restore_baseline(core)        # 랩 떠나기 전
+        save_baseline(core)     # start of session
+        ...experiments...
+        restore_baseline(core)  # end of session
     """
-    print(f"\n[BASELINE] 현재 세팅 저장 중 → {save_path}")
+    print(f"\n[BASELINE] Saving current settings -> {save_path}")
 
     baseline = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "camera": {},
+        "camera": {
+            "device_name": core.get_camera_device(),
+            "exposure_ms": core.get_exposure(),
+        },
         "devices": {},
     }
 
-    # 카메라 기본값
-    cam = core.get_camera_device()
-    baseline["camera"]["device_name"] = cam
-    baseline["camera"]["exposure_ms"] = core.get_exposure()
-
-    # 각 장치의 복구 가능한 property 저장
     skipped = []
-    for device in list(core.get_loaded_devices()):
+    for device in _to_list(core.get_loaded_devices()):
         try:
-            props = core.get_device_property_names(device)
+            props = _to_list(core.get_device_property_names(device))
         except Exception:
             continue
-
-        device_snapshot = {}
+        snapshot = {}
         for prop in props:
-            # 복구 키워드에 해당하는 property만 저장
             if not any(k in prop.lower() for k in _RESTORE_KEYWORDS):
                 continue
-            # read-only property는 set이 안 되니 저장해봤자 의미 없음 — 제외
             try:
                 if core.is_property_read_only(device, prop):
                     continue
-                val = core.get_property(device, prop)
-                device_snapshot[prop] = val
+                snapshot[prop] = core.get_property(device, prop)
             except Exception:
                 skipped.append(f"{device}.{prop}")
+        if snapshot:
+            baseline["devices"][device] = snapshot
 
-        if device_snapshot:
-            baseline["devices"][device] = device_snapshot
-
-    # JSON 저장
     with open(save_path, "w", encoding="utf-8") as f:
         json.dump(baseline, f, indent=2, ensure_ascii=False)
 
-    # 저장 내용 요약 출력
-    print(f"  저장 시각   : {baseline['timestamp']}")
-    print(f"  카메라      : {cam}  |  exposure = {baseline['camera']['exposure_ms']} ms")
-    total_props = sum(len(v) for v in baseline["devices"].values())
-    print(f"  저장 항목   : {len(baseline['devices'])}개 장치 / {total_props}개 property")
+    total = sum(len(v) for v in baseline["devices"].values())
+    print(f"  Timestamp : {baseline['timestamp']}")
+    print(f"  Camera    : {baseline['camera']['device_name']}  exposure={baseline['camera']['exposure_ms']} ms")
+    print(f"  Saved     : {len(baseline['devices'])} devices / {total} properties")
     if skipped:
-        print(f"  건너뜀      : {len(skipped)}개 (read-only 또는 읽기 실패)")
-    print(f"  파일 위치   : {os.path.abspath(save_path)}")
-    print("  [BASELINE] 저장 완료. 실험 끝나고 restore_baseline() 실행하세요.")
+        print(f"  Skipped   : {len(skipped)} (read-only or unreadable)")
+    print(f"  File      : {os.path.abspath(save_path)}")
+    print("  Run restore_baseline() before leaving the lab.")
 
 
 def restore_baseline(core, save_path: str = "baseline_settings.json"):
     """
-    랩 떠나기 전 save_baseline()으로 저장해둔 세팅으로 원복.
+    Restore MM settings to the state saved by save_baseline().
+    Run before leaving the lab.
 
-    복구 순서:
-        1. JSON 파일 로드 → 저장 시각 확인
-        2. 카메라 exposure 복구
-        3. 각 장치 property 복구
-        4. DMD 안전 상태 (all-OFF) + 셔터 닫기
-        5. 복구 결과 요약 출력 (성공 / 실패 목록)
-
-    주의:
-        - save_baseline()을 먼저 실행해야 함
-        - MM이 연결된 상태에서만 동작
-        - config 파일 자체는 건드리지 않음 (MM 재시작 시 cfg가 다시 로드됨)
+    Restore order:
+        1. Load JSON -> confirm saved timestamp
+        2. Restore camera exposure
+        3. Restore all device properties
+        4. DMD -> safe OFF, shutter -> closed, AutoShutter -> ON
     """
-    print(f"\n[RESTORE] 세팅 복구 중 ← {save_path}")
+    print(f"\n[RESTORE] Restoring settings from {save_path}")
 
     if not os.path.exists(save_path):
-        print(f"[ERROR] baseline 파일 없음: {save_path}")
-        print("  → 랩 도착 시 save_baseline(core)를 먼저 실행해야 합니다.")
+        print(f"[ERROR] File not found: {save_path}")
+        print("  -> Run save_baseline(core) at the start of your session.")
         return
 
     with open(save_path, "r", encoding="utf-8") as f:
         baseline = json.load(f)
 
-    print(f"  저장 시각   : {baseline.get('timestamp', '(알 수 없음)')}")
-    print(f"  현재 시각   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Saved at     : {baseline.get('timestamp', '(unknown)')}")
+    print(f"  Restoring at : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    restored = []   # 성공한 항목
-    failed   = []   # 실패한 항목
+    restored = []
+    failed   = []
 
-    # ── 1. 카메라 exposure 복구 ───────────────────────────────────────────
     try:
         exp = float(baseline["camera"]["exposure_ms"])
         core.set_exposure(exp)
-        current = core.get_exposure()
-        restored.append(f"Camera.Exposure → {current} ms")
+        restored.append(f"Camera.Exposure -> {core.get_exposure()} ms")
     except Exception as e:
         failed.append(f"Camera.Exposure ({e})")
 
-    # ── 2. 각 장치 property 복구 ──────────────────────────────────────────
     for device, props in baseline.get("devices", {}).items():
         for prop, val in props.items():
             try:
                 core.set_property(device, prop, val)
-                restored.append(f"{device}.{prop} → {val}")
+                restored.append(f"{device}.{prop} -> {val}")
             except Exception as e:
                 failed.append(f"{device}.{prop} ({e})")
 
-    # ── 3. DMD 안전 상태 + 셔터 닫기 (항상 실행) ─────────────────────────
-    dmd_safe_off(core)
-    try:
-        core.set_shutter_open(False)
-        restored.append("Shutter → closed")
-    except Exception as e:
-        failed.append(f"Shutter ({e})")
+    safe_exit(core)
+    restored.append("DMD -> OFF, Shutter -> closed, AutoShutter -> ON")
 
-    # ── 결과 요약 ─────────────────────────────────────────────────────────
-    print(f"\n  복구 성공   : {len(restored)}개")
+    print(f"\n  Restored : {len(restored)} items")
     for item in restored:
         print(f"    OK  {item}")
 
     if failed:
-        print(f"\n  복구 실패   : {len(failed)}개")
+        print(f"\n  Failed   : {len(failed)} items")
         for item in failed:
             print(f"    !!  {item}")
-        print("  → 실패 항목은 MM GUI에서 수동으로 확인하세요.")
+        print("  -> Check failed items manually in MM GUI.")
     else:
-        print("\n  모든 항목 복구 성공.")
+        print("\n  All items restored successfully.")
 
-    print("\n  [RESTORE] 완료. 안전하게 랩을 떠나셔도 됩니다.")
+    print("\n  [RESTORE] Done. Safe to leave the lab.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MM GUI LIVE 공존 모드 — Live 창 켜둔 채로 값만 조정
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# MM GUI LIVE co-existence — adjust values while MM Live window is open
+# -----------------------------------------------------------------------------
 
 def adjust_brightness_gui_live(core,
                                 exposures_ms: tuple = (5, 10, 30),
-                                led_levels: tuple = (30, 60, 100),
-                                led_device: str = "TransmittedIllumination 2",
-                                led_prop: str = "Brightness"):
+                                led_levels: tuple = (80, 150, 255),
+                                led_device: str = LED_DEVICE,
+                                led_prop: str = LED_PROP):
     """
-    MM GUI의 Live 창이 켜진 상태에서 두 가지 밝기 knob을 독립적으로 조절.
+    Adjust brightness knobs step by step while MM GUI Live window is open.
+    Press Enter to advance each step -- watch the MM Live window directly.
 
-    랩 BF 기본 세팅 (사진 확인):
-        TransmittedIllumination 2-Brightness = 100 (언저리)  ← 주요 밝기 knob
-        Camera Exposure                      = 10ms          ← 짧게 고정 권장
-        DMD pixel value                      = 255           ← All Pixels
+    IMPORTANT: LED Brightness range is 0-255, NOT percent.
+        BF preset default = 255 (full brightness)
+        led_levels default = (80, 150, 255) matching this range
 
-    Knob 1 — LED Brightness (TransmittedIllumination 2-Brightness)
-        X-Cite LED 자체 출력 세기. 0~100 (%).
-        이게 이 셋업에서 실질적인 밝기 조절 knob.
-        너무 높으면 샘플 손상 가능 → 필요한 최소값으로 유지 권장.
+    Knob 1 -- LED Brightness (TransmittedIllumination 2 - Brightness)
+        Primary brightness knob. Range 0-255.
+        BF preset sets this to 255.
 
-    Knob 2 — Camera Exposure (ms)  ★ 주의
-        카메라가 빛을 모으는 시간. 랩 기본값 = 10ms.
-        길수록 이미지 밝아지지만 particle 움직임이 blur로 번짐.
-        → particle 선명도가 중요한 이 실험에서는 10ms 고정 권장.
-        → RL 루프에서는 exposure 건드리지 말고 LED brightness만 조절.
-        Phase 2는 "exposure가 실제로 영향이 있는지" 한 번 확인용.
+    Knob 2 -- Camera Exposure (ms)
+        Secondary knob. Lab default: 10ms.
+        Longer = brighter but particle blur increases.
+        Phase 2 verifies whether exposure visibly affects the image.
+        Recommendation: keep at 10ms after confirming.
 
-    핵심 원칙:
-        - start_continuous_sequence_acquisition() 호출 안 함 → MM Live 충돌 방지
-        - Enter로 단계 넘김 → MM 화면 직접 보면서 확인 가능
-        - finally에서 원래값으로 자동 복구
-
-    사용 전 체크리스트:
-        [ ] MM GUI Live 버튼 ON
-        [ ] BF preset 적용된 상태 (Configuration: Brightfield)
-        [ ] LED device 이름 확인: connect() 출력에서 확인
-            → 기본값 "TransmittedIllumination 2" (사진 기준)
-
-    파라미터:
-        exposures_ms : 테스트할 exposure 단계 (ms). 기본 (5, 10, 30)
-                       10ms = 랩 기본값
-        led_levels   : 테스트할 LED brightness 단계 (%). 기본 (30, 60, 100)
-        led_device   : MM device 이름. 사진 기준 "TransmittedIllumination 2"
-        led_prop     : property 이름. 사진 기준 "Brightness"
+    Checklist before running:
+        [ ] MM GUI Live button ON
+        [ ] BF preset active (Configuration group: Brightfield > BF)
     """
-    print("\n[GUI LIVE] MM Live 창 공존 — brightness 조절")
-    print("  MM GUI Live 버튼이 켜져 있는지 확인하세요.")
-    print("  " + "─" * 50)
+    print("\n[GUI LIVE] Brightness adjustment -- MM Live co-existence mode")
+    print(f"  LED Brightness range: 0-255  (BF default=255, NOT percent)")
+    print("  Confirm MM GUI Live button is ON.")
+    print("  " + "-" * 50)
 
     if not core.is_sequence_running():
-        print("  [경고] MM GUI Live 모드가 꺼져 있습니다.")
-        print("         MM GUI에서 Live 버튼을 먼저 누른 뒤 다시 실행하세요.")
+        print("  [WARNING] MM GUI Live mode is not running.")
+        print("            Press Live in MM GUI first, then re-run.")
         return
 
-    # 현재값 저장 (복구용)
+    # Disable AutoShutter so MM does not re-close shutter during test
+    core.set_auto_shutter(False)
+    print("  -> AutoShutter disabled for manual control")
+
     original_exp = core.get_exposure()
     original_led = None
     led_available = _has_prop(core, led_device, led_prop)
 
     if led_available:
         original_led = core.get_property(led_device, led_prop)
-        print(f"  현재 LED brightness : {original_led} %  → 복구 예정")
+        print(f"  Current LED Brightness : {original_led} / 255  (will be restored)")
     else:
-        print(f"  [주의] '{led_device}.{led_prop}' 를 찾을 수 없습니다.")
-        print(f"         led_device / led_prop 파라미터를 확인하세요.")
-        print(f"         (connect() 출력 또는 print_device_properties()로 확인)")
+        print(f"  [WARNING] {led_device}.{led_prop} not found.")
+        print(f"            Check LED_DEVICE constant at top of file.")
 
-    print(f"  현재 exposure       : {original_exp} ms  → 복구 예정")
-    print(f"  (랩 기본값: LED ~100%  |  exposure 10ms)")
+    print(f"  Current exposure       : {original_exp} ms  (will be restored)")
     print()
 
     try:
-        # ── PHASE 1: LED Brightness 단계별 조절 ──────────────────────────
-        # exposure는 현재값(10ms) 고정, LED만 바꿈 → LED 효과 단독 확인
+        # Phase 1: LED Brightness sweep (exposure fixed at current value)
         if led_available:
-            print("  [PHASE 1] LED Brightness 조절  (exposure 고정 — 주요 knob)")
-            print(f"            exposure = {original_exp} ms 고정")
+            print("  [PHASE 1] LED Brightness sweep  (exposure fixed)")
+            print(f"            Range 0-255. Current={original_led}. BF default=255.")
             print()
             for level in led_levels:
                 core.set_property(led_device, led_prop, str(int(level)))
-                actual_led = core.get_property(led_device, led_prop)
-                print(f"  → LED {actual_led:>4}%  |  exposure {original_exp} ms")
-                input("     [Enter] 다음 단계")
+                actual = core.get_property(led_device, led_prop)
+                print(f"  -> LED {actual:>4} / 255  |  exposure {original_exp} ms")
+                input("     [Enter] next step")
             print()
 
-        # ── PHASE 2: Camera Exposure 단계별 조절 ─────────────────────────
-        # LED 100% 고정, exposure만 바꿈 → blur 영향 확인용
-        # ★ 이 실험에서는 확인 후 10ms로 고정하는 것을 권장
-        print("  [PHASE 2] Camera Exposure 조절  (LED 고정 — 확인용)")
-        print("  ★ particle blur 여부를 확인하세요. 10ms가 적정값일 가능성 높음.")
+        # Phase 2: Camera Exposure sweep (LED restored to original)
+        print("  [PHASE 2] Camera Exposure sweep  (LED fixed -- verification only)")
+        print("  -> Watch for particle motion blur at longer exposures.")
         if led_available:
             core.set_property(led_device, led_prop, original_led)
-            print(f"            LED = {original_led}% 복구 후 exposure만 변경")
+            print(f"     LED restored to {original_led} before sweep")
         print()
         for exp in exposures_ms:
             core.set_exposure(float(exp))
             actual_exp = core.get_exposure()
             current_led = core.get_property(led_device, led_prop) if led_available else "n/a"
-            print(f"  → LED {current_led:>4}%  |  exposure {actual_exp:>6.1f} ms")
-            input("     [Enter] 다음 단계")
+            print(f"  -> LED {current_led:>4} / 255  |  exposure {actual_exp:>6.1f} ms")
+            input("     [Enter] next step")
 
-        print("\n  모든 단계 완료.")
-        print("  권장: exposure는 10ms 고정, 밝기는 LED brightness로만 조절.")
+        print("\n  All steps complete.")
+        print("  Recommendation: fix exposure at 10ms, adjust brightness via LED only.")
 
     except KeyboardInterrupt:
-        print("\n  [중단] Ctrl+C 감지.")
-
+        print("\n  [INTERRUPTED] Ctrl+C detected.")
     finally:
-        # 원래값으로 복구 — 예외/중단에서도 반드시 실행
         core.set_exposure(original_exp)
         if led_available and original_led is not None:
             core.set_property(led_device, led_prop, original_led)
-            print(f"  복구 완료 → LED {core.get_property(led_device, led_prop)}%"
-                  f"  |  exposure {core.get_exposure()} ms")
+        core.set_auto_shutter(True)
+        print(f"  Restored -> LED {core.get_property(led_device, led_prop) if led_available else 'n/a'}"
+              f"  |  exposure {core.get_exposure()} ms  |  AutoShutter ON")
 
 
-def adjust_dmd_pattern_gui_live(core, hold_sec: float = 3.0):
+def adjust_dmd_pattern_gui_live(core):
     """
-    MM GUI의 Live 창이 켜진 상태에서 DMD 패턴을 단계별로 바꿔가며
-    MM 화면에서 공간적 빛 분포 변화를 실시간으로 확인하는 함수.
+    Step through DMD spatial patterns while MM GUI Live window is open.
+    Press Enter to advance -- watch the MM Live window directly.
 
-    패턴 순서:
-        1. Full OFF  → 어두운 기준선 확인
-        2. Full ON   → 풀 brightfield
-        3. Left half → 왼쪽 절반만 조명
-        4. Right half→ 오른쪽 절반만 조명
-        5. Circle    → 중앙 원형 패턴
-        6. Full OFF  → 안전 복구
+    Pattern sequence:
+        Full OFF   -> dark baseline (all mirrors to dump)
+        Full ON    -> full brightfield (all mirrors to sample)
+        Left half  -> left side illuminated
+        Right half -> right side illuminated
+        Circle     -> center circular region illuminated
 
-    사용 전 체크리스트:
-        [ ] MM GUI Live 버튼 ON
-        [ ] LED 셔터(X-Cite) 열려 있는지 확인
-             → 셔터가 닫혀 있으면 DMD 패턴 바꿔도 어두움
+    Checklist before running:
+        [ ] MM GUI Live button ON
+        [ ] XCite-120PC shutter open (light must be on to see patterns)
+            -> AutoShutter must be OFF for shutter to stay open
+            -> apply_bf_preset() handles this if called first
     """
-    print("\n[GUI LIVE] MM Live 창 공존 — DMD 패턴 단계별 조정")
-    print("  MM GUI Live 버튼 + LED 셔터가 열려 있는지 확인하세요.")
-    print("  " + "─" * 44)
+    print("\n[GUI LIVE] DMD pattern sweep -- MM Live co-existence mode")
+    print("  Confirm MM GUI Live ON and XCite shutter open.")
+    print("  " + "-" * 46)
 
     if not core.is_sequence_running():
-        print("  [경고] MM GUI Live 모드가 꺼져 있습니다.")
-        print("         MM GUI에서 Live 버튼을 먼저 누른 뒤 다시 실행하세요.")
+        print("  [WARNING] MM GUI Live mode is not running.")
+        print("            Press Live in MM GUI first, then re-run.")
         return
 
     slm = core.get_slm_device()
@@ -1271,7 +1248,6 @@ def adjust_dmd_pattern_gui_live(core, hold_sec: float = 3.0):
     print(f"  DMD: {slm}  ({w} x {h} px)")
     print()
 
-    # 패턴 정의
     full_off  = np.zeros((h, w), dtype=np.uint8)
     full_on   = np.full((h, w), 255, dtype=np.uint8)
 
@@ -1288,11 +1264,11 @@ def adjust_dmd_pattern_gui_live(core, hold_sec: float = 3.0):
     circle[(yy - cy)**2 + (xx - cx)**2 <= radius**2] = 255
 
     patterns = [
-        ("Full OFF  (기준선 — 어두워야 정상)", full_off),
-        ("Full ON   (풀 brightfield)",         full_on),
-        ("Left half (왼쪽 절반)",               left_half),
-        ("Right half (오른쪽 절반)",            right_half),
-        ("Circle    (중앙 원형)",               circle),
+        ("Full OFF   (dark baseline -- should be dark)",  full_off),
+        ("Full ON    (full brightfield)",                 full_on),
+        ("Left half  (left side illuminated)",            left_half),
+        ("Right half (right side illuminated)",           right_half),
+        ("Circle     (center region illuminated)",        circle),
     ]
 
     def _apply(pattern):
@@ -1302,99 +1278,176 @@ def adjust_dmd_pattern_gui_live(core, hold_sec: float = 3.0):
     try:
         for name, pattern in patterns:
             _apply(pattern)
-            print(f"  → 패턴: {name}")
-            input("     [Enter] 다음 패턴")
-
-        print("\n  모든 패턴 확인 완료.")
+            print(f"  -> Pattern: {name}")
+            input("     [Enter] next pattern")
+        print("\n  All patterns confirmed.")
 
     except KeyboardInterrupt:
-        print("\n  [중단] Ctrl+C 감지.")
-
+        print("\n  [INTERRUPTED] Ctrl+C detected.")
     finally:
-        # DMD 안전 상태로 복구
         _apply(full_off)
-        print("  DMD → Full OFF (안전 복구 완료)")
+        print("  DMD -> Full OFF (safety restore)")
+
+def test_mosaic3_is_exposing(core):
+    """
+    Test whether setting Mosaic3.IsExposing to 'On' triggers DMD pattern display.
+
+    Background:
+        From the device inventory, Mosaic3.IsExposing = Off by default.
+        set_slm_image() + display_slm_image() may not trigger the hardware
+        unless IsExposing is explicitly set to On first.
+
+    What to look for:
+        - With IsExposing On + full_on pattern -> circular light on stage
+        - With IsExposing Off + full_on pattern -> no visible change (current behavior)
+        - If this fixes the visibility issue -> add to apply_bf_preset()
+
+    Sequence:
+        1. Apply BF preset  (LED on, shutter open, brightness=255)
+        2. DMD full ON pattern uploaded
+        3. IsExposing -> Off  (baseline, should be dark)
+        4. IsExposing -> On   (does light appear?)
+        5. IsExposing -> Off  (does light disappear?)
+        6. Safety restore
+    """
+    print("\n[TEST] Mosaic3.IsExposing toggle test")
+
+    slm = core.get_slm_device()
+    w   = core.get_slm_width(slm)
+    h   = core.get_slm_height(slm)
+    full_on  = np.full((h, w), 255, dtype=np.uint8)
+    full_off = np.zeros((h, w),     dtype=np.uint8)
+
+    try:
+        apply_bf_preset(core)
+        start_live(core)
+
+        # Upload full ON pattern first — mirrors ready to reflect
+        core.set_slm_image(slm, full_on)
+        core.display_slm_image(slm)
+        time.sleep(0.5)
+
+        print(f"  IsExposing current : {core.get_property(slm, 'IsExposing')}")
+
+        # -- Baseline: IsExposing Off -----------------------------------------
+        print("\n  -> IsExposing Off  (baseline — should be dark)")
+        core.set_property(slm, "IsExposing", "Off")
+        print(f"     IsExposing : {core.get_property(slm, 'IsExposing')}")
+        time.sleep(5.0)
+
+        # -- IsExposing On ----------------------------------------------------
+        print("\n  -> IsExposing On   (does light appear on stage?)")
+        core.set_property(slm, "IsExposing", "On")
+        print(f"     IsExposing : {core.get_property(slm, 'IsExposing')}")
+        time.sleep(5.0)
+
+        # -- IsExposing Off again ---------------------------------------------
+        print("\n  -> IsExposing Off  (does light disappear?)")
+        core.set_property(slm, "IsExposing", "Off")
+        print(f"     IsExposing : {core.get_property(slm, 'IsExposing')}")
+        time.sleep(3.0)
+
+        # -- set_slm_pixels_to() with IsExposing On ---------------------------
+        # Try the combined approach: pixels_to + IsExposing On
+        print("\n  -> set_slm_pixels_to(255) + IsExposing On")
+        core.set_slm_pixels_to(slm, 255)
+        core.set_property(slm, "IsExposing", "On")
+        print(f"     IsExposing : {core.get_property(slm, 'IsExposing')}")
+        time.sleep(5.0)
+
+        print("\n  -> set_slm_pixels_to(0) + IsExposing Off")
+        core.set_slm_pixels_to(slm, 0)
+        core.set_property(slm, "IsExposing", "Off")
+        time.sleep(3.0)
+
+        print("\n  Test complete.")
+        print("  Result checklist:")
+        print("  [ ] IsExposing On  -> light appeared  -> add to apply_bf_preset()")
+        print("  [ ] IsExposing Off -> light gone      -> confirmed as trigger")
+        print("  [ ] No change either way              -> IsExposing is read-only status field")
+
+    except Exception as e:
+        print(f"[ERROR] {e}")
+    finally:
+        safe_exit(core)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MAIN — uncomment the tests you want to run one at a time
-# ─────────────────────────────────────────────────────────────────────────────
+def self_test(core):
+    core.get_property("TransmittedIllumination 2", "Brightness")
+    core.set_property("TransmittedIllumination 2", "Brightness", "50")
+
+# -----------------------------------------------------------------------------
+# MAIN -- uncomment the function you want to run
+# -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
 
     core = connect()
 
     try:
-        # ── Run one at a time. Comment out the rest. ──────────────────────
+        # -- Run one at a time. Comment out all others. ----------------------
 
-        # STEP 1: single snap — no live mode needed
+        # STEP 1: single snap
         # test_camera_snap(core)
 
         # STEP 2: live mode capture for 5 seconds
         # test_live_mode_snap(core, duration_sec=5.0)
 
-        # STEP 3: shutter (LED) on/off visual test
+        # STEP 3: shutter toggle (XCite-120PC LED on/off)
         # test_shutter_toggle(core, toggle_seconds=3.0)
 
-        # STEP 4: DMD full-on / full-off
+        # STEP 4: DMD full ON / full OFF
         # test_pure_dmd_control(core)
 
-        # STEP 5: brightness via camera exposure (20 / 100 / 500 ms)
-        # test_dmd_brightness_camera(core, exposures_ms=(20, 100, 500))
+        # STEP 5: brightness via camera exposure
+        # test_dmd_brightness_camera(core, exposures_ms=(5, 10, 30))
 
-        # STEP 6: spatial patterns (left half / right half / circle / checkerboard)
+        # STEP 6: spatial patterns
         # test_dmd_partial_pattern(core)
 
-        # STEP 7: LED vs DMD 독립 제어 — 3가지 조합 비교 (각 3초 유지)
+        # STEP 7: LED vs DMD independence (3 sec each combination)
         # test_led_dmd_separation(core, hold_sec=3.0)
 
-        # ── MM GUI LIVE 공존 모드 ──────────────────────────────────────────
-        # MM GUI Live 버튼 켜둔 채로 실행 — start_live() 호출 없음
+        # -- MM GUI LIVE co-existence mode ------------------------------------
+        # Run with MM GUI Live button ON
 
-        # exposure + LED brightness 단계별 조정 (MM 화면 보면서 Enter로 넘김)
+        # LED brightness + exposure sweep (Enter to advance)
         # adjust_brightness_gui_live(core,
-        #     exposures_ms=(50, 102, 200),
-        #     led_levels=(30, 60, 100),
-        #     led_device="TransmittedIllumination 2",
-        #     led_prop="Brightness")
+        #     exposures_ms=(5, 10, 30),
+        #     led_levels=(80, 150, 255))
 
-        # DMD 패턴 단계별 조정 (MM 화면 보면서 Enter로 넘김)
+        # DMD pattern sweep (Enter to advance)
         # adjust_dmd_pattern_gui_live(core)
 
-        # ── BASELINE: 랩 도착 시 / 떠나기 전 ────────────────────────────────
+        # -- BASELINE ---------------------------------------------------------
 
-        # [랩 도착 직후] 현재 세팅 저장 — 실험 시작 전 반드시 실행
+        # [Start of session] save before any experiment
         # save_baseline(core)
 
-        # [랩 떠나기 전] 저장해둔 세팅으로 원복
+        # [End of session] restore before leaving lab
         # restore_baseline(core)
 
-        # ── CALIBRATION TOOLS ─────────────────────────────────────────────
+        # -- CALIBRATION TOOLS ------------------------------------------------
 
-        # CONFIG 파일 파싱 (MM 꺼져도 OK — USB 경로 수정 후 실행)
-        # inspect_config_file("Olympus IX83 System2.cfg")
-        # inspect_config_file("D:/Olympus IX83 System2.cfg")   # USB 예시 (Windows)
-        # inspect_config_file("/Volumes/USB/Olympus IX83 System2.cfg")  # USB 예시 (Mac)
+        # Parse config file (MM does not need to be running)
+        # inspect_config_file()
+        # inspect_config_file("D:/Olympus IX83 System2.cfg")
 
-        # LIVE STATE 읽기 (MM 연결된 상태에서만)
+        # Read live calibration state (MM connection required)
         # inspect_live_state(core)
 
-        # BONUS: dump all device properties to console
+        # Dump all device properties
         # print_device_properties(core)
 
-        # ─────────────────────────────────────────────────────────────────
-        # Start here → just run connect() first to confirm device names
-        print("\nAll imports OK. Ready to run individual test functions.")
-        print("Uncomment one test at a time in __main__ and re-run.")
+        # ---------------------------------------------------------------------
+        print("\nAll imports OK. Uncomment one function at a time and re-run.")
 
     except Exception as e:
         print(f"\n[ERROR] {e}")
 
     finally:
-        # Always close shutter on exit — regardless of what happened
         try:
-            core.set_shutter_open(False)
-            print("\n[EXIT] Shutter closed.")
+            safe_exit(core)
         except Exception:
             pass
 
