@@ -1,0 +1,89 @@
+1. TransmittedIllumination 2 — LED brightness
+pythoncore.get_property("TransmittedIllumination 2", "Brightness")  # 현재 104
+core.set_property("TransmittedIllumination 2", "Brightness", "50")
+가장 직접적인 밝기 조절. 0-255 range. 샘플 손상 주의.
+
+2. XCite-120PC — 셔터 & 램프
+pythoncore.get_property("XCite-120PC", "Shutter-State")   # Open / Closed
+core.set_property("XCite-120PC", "Shutter-State", "Open")
+
+core.get_property("XCite-120PC", "Lamp-Intensity")  # 현재 100%
+core.set_property("XCite-120PC", "Lamp-Intensity", "50")
+
+core.get_property("XCite-120PC", "Lamp-State")      # On / Off
+TransmittedIllumination 2와 조합해서 밝기 조절 가능.
+
+3. Mosaic3 — DMD 패턴 & 노출
+pythoncore.get_property("Mosaic3", "ExposureTime")         # 현재 2ms
+core.set_property("Mosaic3", "ExposureTime", "100")
+
+core.get_property("Mosaic3", "IsExposing")           # On / Off
+core.get_property("Mosaic3", "OperationMode")        # Live
+core.get_property("Mosaic3", "TriggerMode")          # InternalExpose
+IsExposing이 현재 Off인데, 이걸 On으로 바꿔야 패턴이 실제로 적용될 수 있어요.
+
+4. Camera-1 — 카메라 세팅
+pythoncore.get_property("Camera-1", "Gain")          # 1-Balanced
+core.set_property("Camera-1", "Gain", "2-Sensitivity")
+
+core.get_property("Camera-1", "Binning")       # 1x1
+core.set_property("Camera-1", "Binning", "2x2")  # 해상도 절반, 속도 4배
+
+core.get_property("Camera-1", "TriggerMode")   # Internal Trigger
+core.set_property("Camera-1", "TriggerMode", "Edge Trigger")
+
+5. Objective — 렌즈 전환
+pythoncore.get_property("Objective", "Label")        # 현재 4-UPLXAPO100XO (100x)
+core.get_property("Objective", "State")        # 현재 3
+core.set_property("Objective", "State", "0")   # 다른 렌즈로 전환
+현재 100x 렌즈. 다른 배율 있으면 전환 테스트 가능.
+
+6. FocusDrive — Z축 이동
+pythoncore.get_position("FocusDrive")                # 현재 4685.3 um
+core.set_position("FocusDrive", 4686.0)        # 0.7um 위로
+core.get_property("FocusDrive", "MaxSpeed")    # 3000
+core.set_property("FocusDrive", "InitialSpeed", "500")
+
+7. XYStage — XY 이동
+pythoncore.get_x_position("XYStage")   # 현재 3407.8 um
+core.get_y_position("XYStage")   # 현재 311.0 um
+core.set_xy_position("XYStage", 3410.0, 311.0)  # 2.2um 이동
+
+우선순위 추천:
+RL 루프 목표 기준으로 지금 당장 테스트할 가치가 높은 순서예요:
+1순위  Mosaic3.IsExposing       DMD 패턴이 안 보이는 핵심 원인일 수 있음
+2순위  TransmittedIllumination 2.Brightness  밝기 조절 확인
+3순위  XCite-120PC.Shutter-State  셔터 수동 제어 확인
+4순위  Camera-1.Gain / Binning    이미지 품질 조절
+5순위  FocusDrive                 포커스 자동화 (나중에 필요)
+6순위  XYStage                    스테이지 자동화 (나중에 필요)
+
+
+
+
+Tools script panel
+import org.micromanager.projector.*;
+
+mm.plugins().getMenuPlugins().keySet()
+
+
+MM GUI → Help → Show Log
+
+ Device Property Browser
+ MM GUI → Devices → Device Property Browser → Mosaic3
+
+
+ C:\Users\[username]\AppData\Local\Temp\MMLog.txt
+
+
+ GUI 동작                    →  Log에서 찾을 것
+─────────────────────────────────────────────
+All Pixels 클릭             →  setSLMImage / setSLMPixelsTo
+Brightfield BF 선택         →  setConfig
+Shutter Open 클릭           →  setShutterOpen
+Live 버튼 클릭              →  startContinuousSequenceAcquisition
+Snap 버튼 클릭              →  snapImage
+Focus 이동                  →  setPosition
+XY Stage 이동               →  setXYPosition
+Objective 전환              →  setProperty Objective State
+LED Brightness 조절         →  setProperty TransmittedIllumination
